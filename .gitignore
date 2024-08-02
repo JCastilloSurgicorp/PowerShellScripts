@@ -1,0 +1,7 @@
+# Ignora el Log generado por PowerShell
+/log
+
+# Ignora el primer script creado de prueba
+/remove_prueba.ps1
+
+
