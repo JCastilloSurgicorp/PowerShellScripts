@@ -16,7 +16,7 @@ $spQuery = "<View>
                     <Where>
                         <Gt>
                             <FieldRef Name='ID'/>
-                            <Value Type='Number'>39560</Value>
+                            <Value Type='Number'>40815</Value>
                         </Gt>
                     </Where>
                 </Query>
