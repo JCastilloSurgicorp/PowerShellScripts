@@ -88,7 +88,7 @@ function Main() {
     # Datos del QUERY
     $sqlTable = "GR_BUSQUEDA"
     $sqlcollumns = "id, NUMERO_GUIA, ID_APP, FECHA_GUIA"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 200 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 200000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
