@@ -7,16 +7,17 @@ function Write-Yellow($message) {
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
 $spSite = "SurgiCorpApp"
-$spListName = "GUIAS_REMISION"
+$spListName = "ListaMedicos"
 $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
 $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
 $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
+#$spFields = "ID", "field_1"
 $spQuery = "<View>
                 <Query>
                     <Where>
                         <Gt>
                             <FieldRef Name='ID'/>
-                            <Value Type='Number'>40815</Value>
+                            <Value Type='Number'>977</Value>
                         </Gt>
                     </Where>
                 </Query>
@@ -37,6 +38,12 @@ Write-host "Total Number of Items Found: "$spListItems.Count -ForegroundColor "C
 if($spListItems.Count -eq 0 || $null -eq $spListItems) {
     Write-Host "No hay datos en la tabla: $spListName." -ForegroundColor "Red"
 } else {
+    #if ($spListItems -is [System.Array]) {
+    #   $spListItems = $spListItems[0]
+    #}
+    #$hashsp = ([Hashtable]$spListItems.FieldValues) | Select-Object ($spFields | Select-Object -First 2)
+    #$hashsp 
+    #$distinctItems = $spListItems | Select-Object -Property Medico -Unique
     # Opciones para la Sharepoint List
     $option = Read-Host "Que desea hacer con los items encontrados en la Lista '$spListName'? `n([D]Delete / [C]Copy / [F]Filter)"
     if($option -contains "D"){
@@ -44,6 +51,7 @@ if($spListItems.Count -eq 0 || $null -eq $spListItems) {
         # Create a New Batch
         $Batch = New-PnPBatch
         
+
         # Delete All List Items
         ForEach($Item in $spListItems)
         {   
