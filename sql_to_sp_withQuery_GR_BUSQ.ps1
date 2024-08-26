@@ -87,8 +87,8 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "GR_BUSQUEDA"
-    $sqlcollumns = "id, NUMERO_GUIA, ID_APP, FECHA_GUIA"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 200000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
+    $sqlcollumns = "id, NUMERO_GUIA, ID_APP, FECHA_GUIA, OC_CLIENTE"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 200 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -119,7 +119,7 @@ function Main() {
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID","NUMERO_GUIA","ID_APP","FECHA_GUIA"
+        $spFields = "ID","NUMERO_GUIA","ID_APP","FECHA_GUIA", "OC_CLIENTE"
         $spQuery = "<View>  
                         <Query>
                             <Where>
