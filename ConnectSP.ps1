@@ -7,7 +7,7 @@ function Write-Yellow($message) {
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
 $spSite = "SurgiCorpApp"
-$spListName = "ListaMedicos"
+$spListName = "GR_DESCRIPCION"
 $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
 $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
 $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
@@ -17,7 +17,7 @@ $spQuery = "<View>
                     <Where>
                         <Gt>
                             <FieldRef Name='ID'/>
-                            <Value Type='Number'>977</Value>
+                            <Value Type='Number'>514109</Value>
                         </Gt>
                     </Where>
                 </Query>

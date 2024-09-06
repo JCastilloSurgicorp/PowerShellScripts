@@ -86,10 +86,10 @@ function Main() {
     $sqlUser = "powerapps"
     $sqlPass = "*Surgi007"
     # Datos del QUERY
-    $sqlTable = "DOCGUI_PWRAPP"
-    $sqlcollumns = "ID,NUMERO_GUIA,EMPRESA,ATENCION,REPRESENTANTE,NOMBRE_CLIENTE,MOTIVO_TRASLADO,OBSERVACION,PRODUCTO,DESCRIPCION_PRODUCTO,LOTE,VENCIMIENTO_LOTE,SECTOR,CANTIDAD,DIRECCION_ENTREGA,ID_APP,FECHA_GUIA"
-    $sqlQuery = "SELECT TOP 3800 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable WHERE OC_CLIENTE='' and FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
-    $sqlPrimaryKey = "ID"
+    $sqlTable = "HOJA_PICKING"
+    $sqlcollumns = "id,NUMERO_GUIA,ATENCION,FECHA_ATENCION"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 200 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
+    $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
     $Conection.ConnectionString = "Server=$sqlServer;Database=$sqlDatabase;user=$sqlUser;password=$sqlPass"
@@ -114,31 +114,29 @@ function Main() {
         # STEP 2 - Connect SPO
         # Datos del SharePoint
         $spEmpresa = "appsurgicorp"
-        $spSite = "SurgiCorpApp"
+        $spSite = "AppHojasPicking"
         $spListName = "HOJA_PICKING"
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "id0","Title","EMPRESA","ATENCION","REPRESENTANTE","CLIENTE","MOTIV_TRASLADO","OBSERVACION","COD_ART","DESCRIPCION","LOTE","SECTOR","INT","DIR_ENTREGA","ID_APP","VENCIMIENTO","FECHA_GENERADA"
-        $spQuery = "<View Scope='RecursiveAll'>  
+        $spFields = "ID","NUMERO_GUIA","ATENCION","FECHA_ATENCION"
+        $spQuery = "<View>  
                         <Query>
                             <Where>
                                 <Gt>
-                                    <FieldRef Name='FECHA_GENERADA'/>
-                                    <Value Type='DateTime'>
-                                        <Today OffsetDays='-1'/>
-                                    </Value>
+                                    <FieldRef Name='ID'/>
+                                    <Value Type='Number'>0</Value>
                                 </Gt>
                             </Where>
                         </Query>
-                        <RowLimit>4000</RowLimit>
+                        <RowLimit>1</RowLimit>
                     </View>"
         
         # Connect to PnP Online Using ENTRA: 
         Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl
         # Get List Items 
         $start1 = Get-Date
-        $spDestination =  Get-PnPListItem -List $spListName -Query $spQuery #-PageSize 4000
+        $spDestination =  Get-PnPListItem -List $spListName -Query $spQuery -PageSize 4000
         $end1 = Get-Date
         $totaltime1 = $end1 - $start1
         Write-Yellow "`nTiempo de Get-ListItem: $($totaltime1.tostring("hh\:mm\:ss"))`n"
@@ -150,78 +148,21 @@ function Main() {
         $afterCount = $sqlSourceHash.Count
         # Inicializar Variables antes de ingresar al foreach
         $spBatch = New-PnPBatch
-        $spMatchItem = $null
 
         # STEP 3 - Add or update SPLIST items on destination by comparing primary keys
         foreach ($row in $sqlSourceHash) {
-            # Agrega y reemplaza columna ID por Id0 antes de comparar
-            $row[$spFields[0]] = [int]$row[$sqlPrimaryKey]
-            $row.remove($sqlPrimaryKey)
-            # Agrega y reemplaza columna NUMERO_GUIA por Title antes de comparar
-            $row[$spFields[1]] = $row["NUMERO_GUIA"]
-            $row.remove("NUMERO_GUIA")
-            # Agrega y reemplaza columna NOMBRE_CLIENTE por CLIENTE antes de comparar
-            $row[$spFields[5]] = $row["NOMBRE_CLIENTE"]
-            $row.remove("NOMBRE_CLIENTE")
-            # Agrega y reemplaza columna MOTIVO_TRASLADO por MOTIV_TRASLADO antes de comparar
-            $row[$spFields[6]] = $row["MOTIVO_TRASLADO"]
-            $row.remove("MOTIVO_TRASLADO")
-            # Agrega y reemplaza columna PRODUCTO por COD_ART antes de comparar
-            $row[$spFields[8]] = $row["PRODUCTO"]
-            $row.remove("PRODUCTO")
-            # Agrega y reemplaza columna DESCRIPCION_PRODUCTO por DESCRIPCION antes de comparar
-            $row[$spFields[9]] = $row["DESCRIPCION_PRODUCTO"]
-            $row.remove("DESCRIPCION_PRODUCTO")
-            # Agrega y reemplaza columna CANTIDAD por INT antes de comparar
-            $row[$spFields[12]] = [int]$row["CANTIDAD"]
-            $row.remove("CANTIDAD")
-            # Agrega y reemplaza columna DIRECCION_ENTREGA por DIR_ENTREGA antes de comparar
-            $row[$spFields[13]] = $row["DIRECCION_ENTREGA"]
-            $row.remove("DIRECCION_ENTREGA")
-            # Da formato de Número a ID_APP
-            $row["ID_APP"] = [int]$row["ID_APP"]
-            # Agrega y reemplaza columna VENCIMIENTO_LOTE por VENCIMIENTO antes de comparar
-            $row[$spFields[15]] = $row["VENCIMIENTO_LOTE"]
-            $row.remove("VENCIMIENTO_LOTE")
-            # Agrega y reemplaza columna FECHA_GUIA por FECHA_GENERADA antes de comparar
-            $row[$spFields[16]] = $row["FECHA_GUIA"]
-            $row.remove("FECHA_GUIA")
+            # Formatea la columna id antes de comparar
+            $row[$sqlPrimaryKey] = [int]$row[$sqlPrimaryKey]
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
+            $row[$spFields[3]] = $row[$spFields[3]].DateTime
             # Compara las primary key de Sharepoint con las de SQL
-            $spMatchItem = $spDestination | Where-Object { $_[$spFields[0]] -eq $pk }
-            # First matched SPLIST row only
-            if ($spMatchItem -is [System.Array]) {
-                $spMatchItem = $spMatchItem[0]
-            }
-            # If row does not exist, add it
-            if (!$spMatchItem) {
+            if ($spDestination.Count -lt $pk){
+                $row.remove("id")
                 # Insert row
                 Add-PnPListItem -List $spListName -Values $row -Batch $spBatch
                 $added++
                 Write-Blue "Agregando: $sqlPrimaryKey = $pk"
-            }
-            else {
-                # If row does exist, update it
-                # Crea el hash de Sharepoint y formatea el Id0 para comparar los Hash
-                $hashsp = ([Hashtable]$spMatchItem.FieldValues) | Select-Object ($spFields | Select-Object -First 14)
-                $hashsp."id0" = [int]$hashsp."id0"
-                $hashsp."INT" = [int]$hashsp."INT"
-                if ($null -eq $hashsp."OBSERVACION" ) {
-                    $hashsp."OBSERVACION" = ""
-                }
-                # Crea el hash de SQL para comparar
-                $hash = ($row | Select-Object ($spFields | Select-Object -First 14))
-                # Compara los hash para verificar si se necesita actualizar
-                $needUpdate = (ConvertTo-Json $hash) -ne (ConvertTo-Json $hashsp)
-                # Si necesita actualizar, realiza la actualización
-                if ($needUpdate) {
-                    # Agrega al Batch para actualizar en bloque
-                    Set-PnPListItem -List $spListName -Identity $spMatchItem.ID -Values $row -Batch $spBatch
-                    Write-Blue "Actualizando: $pk"
-                    $updated++
-                    $needUpdate = $false
-                } 
             }
         }
         $afterCount = $beforeCount + $added
