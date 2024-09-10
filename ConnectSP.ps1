@@ -48,7 +48,7 @@ function ConvertFrom-DataRow {
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
 $spSite = "SurgiCorpApp"
-$spListName = "GR_DESCRIPCION"
+$spListName = "GR_BUSQUEDA"
 $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
 $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
 $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
@@ -59,11 +59,11 @@ $spQuery = "<View>
                         <And>
                             <Gt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>517520</Value>
+                                <Value Type='Number'>41423</Value>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>518983</Value>
+                                <Value Type='Number'>416239</Value>
                             </Lt>
                         </And>
                     </Where>
