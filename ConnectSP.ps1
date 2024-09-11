@@ -59,7 +59,7 @@ $spQuery = "<View>
                         <And>
                             <Gt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>41423</Value>
+                                <Value Type='Number'>41733</Value>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
