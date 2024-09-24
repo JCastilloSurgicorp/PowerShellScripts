@@ -87,7 +87,7 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "HOJA_PICKING"
-    $sqlcollumns = "id,NUMERO_GUIA,ATENCION,FECHA_ATENCION,LIMA_PROVINCIA"
+    $sqlcollumns = "id,NUMERO_GUIA,UBICACION_SECTOR,ATENCION,FECHA_ATENCION,LIMA_PROVINCIA"
     $sqlQuery = "SELECT * FROM (SELECT TOP 200 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
@@ -119,7 +119,7 @@ function Main() {
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID","NUMERO_GUIA","ATENCION","FECHA_ATENCION", "LIMA_PROVINCIA"
+        $spFields = "ID","NUMERO_GUIA","UBICACION_SECTOR","ATENCION","FECHA_ATENCION", "LIMA_PROVINCIA"
         $spQuery = "<View>  
                         <Query>
                             <Where>

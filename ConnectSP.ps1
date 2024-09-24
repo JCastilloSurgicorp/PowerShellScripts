@@ -59,11 +59,11 @@ $spQuery = "<View>
                         <And>
                             <Gt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>42158</Value>
+                                <Value Type='Number'>55104</Value>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>416239</Value>
+                                <Value Type='Number'>916239</Value>
                             </Lt>
                         </And>
                     </Where>
