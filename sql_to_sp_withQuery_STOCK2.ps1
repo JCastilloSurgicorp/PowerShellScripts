@@ -88,8 +88,7 @@ function Main() {
     # Datos del QUERY
     $sqlTable = "STOCKS_INVENTARIO"
     $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id"
-    $sqlQuery = "SELECT $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable order by id"
-    #not(OC_CLIENTE='' or OC_CLIENTE is null) and FECHA_GUIA >= Cast(CURRENT_TIMESTAMP as date)
+    $sqlQuery = "SELECT $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable WHERE id > 84899 order by id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -126,19 +125,19 @@ function Main() {
                             <Where>
                                 <Gt>
                                     <FieldRef Name='ID'/>
-                                    <Value Type='Number'>0</Value>
+                                    <Value Type='Number'>84899</Value>
                                 </Gt>
                             </Where>
                         </Query>
+                        <RowLimit>1</RowLimit>
                     </View>"
         
         # Connect to PnP Online Using ENTRA: 
         Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl
         # Get List Items 
         $start1 = Get-Date
-        $spDestination =  Get-PnPListItem -List $spListName -PageSize 4000 -Query $spQuery
+        $spDestination =  Get-PnPListItem -List $spListName -Query $spQuery -PageSize 4000
         $end1 = Get-Date
-        $spDestination[-1]
         $totaltime1 = $end1 - $start1
         Write-Yellow "`nTiempo de Get-ListItem: $($totaltime1.tostring("hh\:mm\:ss"))`n"
         # Measure changes to SPLIST
@@ -149,7 +148,6 @@ function Main() {
         $afterCount = $sqlSourceHash.Count
         # Inicializar Variables antes de ingresar al foreach
         $spBatch = New-PnPBatch
-        $spMatchItem = $null
 
         # STEP 3 - Add or update SPLIST items on destination by comparing primary keys
         foreach ($row in $sqlSourceHash) {
@@ -179,56 +177,18 @@ function Main() {
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
             # Compara las primary key de Sharepoint con las de SQL
-            $spMatchItem = $spDestination | Where-Object { $_[$spFields[0]] -eq $pk }
-            $pk
-            # First matched SPLIST row only
-            if ($spMatchItem -is [System.Array]) {
-                $spMatchItem = $spMatchItem[0]
-            }
-            # If row does not exist, add it
-            if (!$spMatchItem) {
-                #Si el PK es el ID removemos el ID ya que sharepoint crea ID automanticamente
-                $row.remove($sqlPrimaryKey)
+            if ($spDestination.Count -lt $pk){
+                $row.remove("id")
                 # Insert row
                 Add-PnPListItem -List $spListName -Values $row -Batch $spBatch
                 $added++
                 Write-Blue "Agregando: $sqlPrimaryKey = $pk"
             }
-            else {
-                # If row does exist, update it
-                # Crea el hash de Sharepoint y formatea el Id0 para comparar los Hash
-                $hashsp = ([Hashtable]$spMatchItem.FieldValues) | Select-Object ($spFields | Select-Object -First 10)
-                $hashsp."ID" = [int]$hashsp."ID"
-                $hashsp."STOCK" = [int]$hashsp."STOCK"
-                $hashsp."DEPOSITO_ID" = [int]$hashsp."DEPOSITO_ID"
-                $hashsp."PRODUCTO_ID" = [int]$hashsp."PRODUCTO_ID"
-                $hashsp."SECTOR_ID" = [int]$hashsp."SECTOR_ID"
-                $hashsp."TipoAlm_ID" = [int]$hashsp."TipoAlm_ID"
-                $hashsp."TipoProd_ID" = [int]$hashsp."TipoProd_ID"
-                if($null -eq $hashsp."TIPO_ALMACENAJE"){
-                    $hashsp."TIPO_ALMACENAJE"=''
-                }
-                # Crea el hash de SQL para comparar
-                $hash = ($row | Select-Object ($spFields | Select-Object -First 10))
-                # Compara los hash para verificar si se necesita actualizar
-                $needUpdate = (ConvertTo-Json $hash) -ne (ConvertTo-Json $hashsp)
-                # Si necesita actualizar, realiza la actualización
-                if ($needUpdate) {
-                    ConvertTo-Json $hashsp
-                    ConvertTo-Json $hash
-                    #Si el PK es el ID removemos el ID ya que sharepoint crea ID automanticamente
-                    $row.remove($sqlPrimaryKey)
-                    # Agrega al Batch para actualizar en bloque
-                    Set-PnPListItem -List $spListName -Identity $spMatchItem.ID -Values $row -Batch $spBatch
-                    Write-Blue "Actualizando: $pk"
-                    $updated++
-                    $needUpdate = $false
-                } 
-            }
         }
         $afterCount = $beforeCount + $added
         # Realiza el HTTP POST para agregar o actualizar en bloque
         Invoke-PnPBatch $spBatch
+        Disconnect-PnPOnline
         # Display results with SQL and SPLIST row counts
         Write-Yellow "Filas de Sharepoint Inicial    = $($beforeCount)"
         Write-Yellow "Filas de Sharepoint Final      = $($afterCount)"
