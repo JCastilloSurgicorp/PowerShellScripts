@@ -8,7 +8,7 @@
         * Script will update rows in the SharePoint List that are different in the SQL table.
         * Script will not update rows in the SharePoint List that are the same in the SQL table.
 .EXAMPLE
-    C:\> .\sql_to_sp_withQuery_HP.ps1
+    C:\> .\sql_to_sp_withQuery_GR.ps1
 .NOTES
     File Name:  sql_to_sp_withQuery_HP.ps1
     Version:    1.0
@@ -86,9 +86,9 @@ function Main() {
     $sqlUser = "powerapps"
     $sqlPass = "*Surgi007"
     # Datos del QUERY
-    $sqlTable = "STOCKS_INVENTARIO"
-    $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 100 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
+    $sqlTable = "FACT_DETALLE"
+    $sqlcollumns = "id, NUMERO_FACTURA, FECHA_EMISION, MONTO, MONEDA, NOMBRE_CLIENTE, CONDICION_PAGO, VENDEDOR, CANCELADO, ESTADO, COBRADO, SALDO, NC_FACTURA_CANJE, NC_ANULACION, TITULO_GRATUITO, EMPRESA, DIRECCION_ENTREGA, SEDE, ID_APP, OC_CLIENTE, ID_FACT, TIPO_CLIENTE, USUARIO_REGISTRO, ZONA"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 200 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -114,12 +114,12 @@ function Main() {
         # STEP 2 - Connect SPO
         # Datos del SharePoint
         $spEmpresa = "appsurgicorp"
-        $spSite = "AppStockInventarios"
-        $spListName = "STOCK_INVENTARIO"
+        $spSite = "AppFacturacion"
+        $spListName = "FACT_DETALLE"
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID", "STOCK", "LOTE", "TIPO_ALMACENAJE", "DESCRIPCION_DEPOSITO", "REGISTRO_SANITARIO", "DEPOSITO_ID", "PRODUCTO_ID", "SECTOR_ID", "TipoAlm_ID", "TipoProd_ID", "VIGENCIA_LOTE", "FECHA_VIGENCIA_REGSAN", "ID_SQL"
+        $spFields = "ID","NUMERO_FACTURA","ID_APP","FECHA_EMISION", "OC_CLIENTE"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -131,7 +131,6 @@ function Main() {
                         </Query>
                         <RowLimit>1</RowLimit>
                     </View>"
-        
         # Connect to PnP Online Using ENTRA: 
         Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl
         # Get List Items 
@@ -142,7 +141,6 @@ function Main() {
         Write-Yellow "`nTiempo de Get-ListItem: $($totaltime1.tostring("hh\:mm\:ss"))`n"
         # Measure changes to SPLIST
         $added = 0
-        $updated = 0
         # Measure SPLIST rows before and after
         $beforeCount = $spDestination.Count
         $afterCount = $sqlSourceHash.Count
@@ -151,29 +149,10 @@ function Main() {
 
         # STEP 3 - Add or update SPLIST items on destination by comparing primary keys
         foreach ($row in $sqlSourceHash) {
-            # Agrega y reemplaza columna id por ID antes de comparar
-            $row[$spFields[13]] = [int]$row[$sqlPrimaryKey]
-            #$row.remove($sqlPrimaryKey)
-            # Formatea columna STOCK antes de comparar
-            $row["STOCK"] = [int]$row["STOCK"]
-            # Agrega y reemplaza columna dep_id_id por DEPOSITO_ID antes de comparar
-            $row[$spFields[6]] = [int]$row["dep_id_id"]
-            $row.remove("dep_id_id")
-            # Agrega y reemplaza columna prod_id_id por dep_id_id antes de comparar
-            $row[$spFields[7]] = [int]$row["prod_id_id"]
-            $row.remove("prod_id_id")
-            # Agrega y reemplaza columna sector_id_id por dep_id_id antes de comparar
-            $row[$spFields[8]] = [int]$row["sector_id_id"]
-            $row.remove("sector_id_id")
-            # Agrega y reemplaza columna tipoAlm_id_id por dep_id_id antes de comparar
-            $row[$spFields[9]] = [int]$row["tipoAlm_id_id"]
-            $row.remove("tipoAlm_id_id")
-            # Agrega y reemplaza columna tipoProd_id_id por dep_id_id antes de comparar
-            $row[$spFields[10]] = [int]$row["tipoProd_id_id"]
-            $row.remove("tipoProd_id_id")
-            # Agrega y reemplaza columna FECHA_VIGENCIA_LOTE por VIGENCIA_LOTE antes de comparar
-            $row[$spFields[11]] = $row["FECHA_VIGENCIA_LOTE"]
-            $row.remove("FECHA_VIGENCIA_LOTE")
+            # Agrega la columna ID antes de comparar
+            $row[$sqlPrimaryKey] = [int]$row[$sqlPrimaryKey]
+            # Agrega y reemplaza columna ID_APP por entero antes de comparar
+            $row[$spFields[2]] = [int]$row["ID_APP"]
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
             # Compara las primary key de Sharepoint con las de SQL
@@ -188,13 +167,11 @@ function Main() {
         $afterCount = $beforeCount + $added
         # Realiza el HTTP POST para agregar o actualizar en bloque
         Invoke-PnPBatch $spBatch
-        Disconnect-PnPOnline
         # Display results with SQL and SPLIST row counts
         Write-Yellow "Filas de Sharepoint Inicial    = $($beforeCount)"
         Write-Yellow "Filas de Sharepoint Final      = $($afterCount)"
         Write-Red "----------------------------------------"
         Write-Green  "Agregados                      = $added"
-        Write-Green  "Actualizados                   = $updated"
     }
 }
 
