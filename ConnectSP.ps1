@@ -47,7 +47,7 @@ function ConvertFrom-DataRow {
 }
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
-$spSite = "SurgiCorpApp"
+$spSite = "AppHojasPicking"
 $spListName = "HOJA_PICKING"
 # Tabla SQL a Actualizar
 $sqlTable = "[dbo].[HP_PROVEEDOR]"
@@ -65,23 +65,12 @@ $spQuery = "<View>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>900000</Value>
+                                <Value Type='Number'>30000</Value>
                             </Lt>
                         </And>
                     </Where>
                 </Query>
             </View>"
-
-#                       <And>
-#                            <Gt>
-#                               <FieldRef Name='ID'/>
-#                               <Value Type='Number'>666</Value>
-#                           </Gt>
-#                           <Lt>
-#                               <FieldRef Name='ID'/>
-#                               <Value Type='Number'>672</Value>
-#                           </Lt>
-#                       </And>
 # Connect to PnP Online Using ENTRA: 
 Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl
 
@@ -148,7 +137,7 @@ if($spListItems.Count -eq 0 || $null -eq $spListItems) {
         ForEach($Item in $spListItems){
             # Guarda el ID del la fila a actualizar
             $ItemID = [int]$Item.ID
-            Write-Host "`nActualizando ID N° $ItemID. $Filter = $FilterValue" -ForegroundColor "Green"
+            Write-Host "Actualizando ID N° $ItemID. $Filter = $FilterValue" -ForegroundColor "DarkGreen"
             # Agrega al Batch para actualizar en bloque
             Set-PnPListItem -List $spListName -Identity $ItemID -Values @{"$Filter"=$FilterValue} -Batch $spBatch
             $count++
@@ -157,7 +146,8 @@ if($spListItems.Count -eq 0 || $null -eq $spListItems) {
         Invoke-PnPBatch $spBatch
         # Desconectar del sharepoint
         Disconnect-PnPOnline
-        Write-Host "`nTotal de Registros Actualizados: $count" -ForegroundColor "DarkGreen"
+        Write-Host "-----------------------------------------" -ForegroundColor "Red"
+        Write-Host "Total de Registros Actualizados: $count" -ForegroundColor "Blue"
         
     }
     elseif ($option -contains "E") {   

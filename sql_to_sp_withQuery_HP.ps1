@@ -87,8 +87,8 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "HOJA_PICKING"
-    $sqlcollumns = "id,NUMERO_GUIA,UBICACION_SECTOR,ATENCION,FECHA_ATENCION,LIMA_PROVINCIA"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 200 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
+    $sqlcollumns = "id,NUMERO_GUIA,UBICACION_SECTOR,ATENCION,FECHA_ATENCION,LIMA_PROVINCIA,EMPRESA_ID"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 60000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -119,7 +119,7 @@ function Main() {
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID","NUMERO_GUIA","UBICACION_SECTOR","ATENCION","FECHA_ATENCION", "LIMA_PROVINCIA"
+        $spFields = "ID","NUMERO_GUIA","UBICACION_SECTOR","ATENCION","FECHA_ATENCION", "LIMA_PROVINCIA", "EMPRESA_ID"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -155,7 +155,10 @@ function Main() {
             $row[$sqlPrimaryKey] = [int]$row[$sqlPrimaryKey]
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
-            $row[$spFields[3]] = $row[$spFields[3]].DateTime
+            # Formatea el campo FECHA_ATENCION
+            $row[$spFields[4]] = $row[$spFields[4]].DateTime
+            # Formatea el campo EMPRESA_ID
+            $row[$spFields[6]] = [int]$row[$spFields[6]]
             # Compara las primary key de Sharepoint con las de SQL
             if ($spDestination.Count -lt $pk){
                 $row.remove("id")
@@ -168,6 +171,7 @@ function Main() {
         $afterCount = $beforeCount + $added
         # Realiza el HTTP POST para agregar o actualizar en bloque
         Invoke-PnPBatch $spBatch
+        Disconnect-PnPOnline
         # Display results with SQL and SPLIST row counts
         Write-Yellow "Filas de Sharepoint Inicial    = $($beforeCount)"
         Write-Yellow "Filas de Sharepoint Final      = $($afterCount)"

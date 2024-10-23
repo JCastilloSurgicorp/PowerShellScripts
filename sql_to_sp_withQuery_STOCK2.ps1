@@ -87,8 +87,8 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "STOCKS_INVENTARIO"
-    $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 100 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
+    $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id, CODIGO_QR"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 500 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
