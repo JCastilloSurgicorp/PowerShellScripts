@@ -87,8 +87,8 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "GR_DESCRIPCION"
-    $sqlcollumns = "id, NUMERO_GUIA, NUMERO_ITEM, PRODUCTO_ID, SECTOR_ID, CANTIDAD, LOTE, VENCIMIENTO_LOTE"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 2000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
+    $sqlcollumns = "id, NUMERO_GUIA, NUMERO_ITEM, PRODUCTO, PROVEEDOR, SECTOR_ID, CANTIDAD, LOTE, VENCIMIENTO_LOTE, EMPRESA_ID, UBICACION_SECTOR, ID_CONCAT"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 2000000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -119,7 +119,7 @@ function Main() {
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID","NUMERO_GUIA","NUMERO_ITEM","PRODUCTO_ID","SECTOR_ID","CANTIDAD","LOTE","VENCIMIENTO_LOTE"
+        $spFields = "ID","NUMERO_GUIA","NUMERO_ITEM","PRODUCTO","PROVEEDOR","SECTOR_ID","EMPRESA_ID","CANTIDAD","LOTE","VENCIMIENTO_LOTE","UBICACION_SECTOR","ID_CONCAT"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -153,12 +153,14 @@ function Main() {
             $row[$sqlPrimaryKey] = [int]$row[$sqlPrimaryKey]
             # Agrega y reemplaza columna NUMERO_ITEM por entero antes de comparar
             $row[$spFields[2]] = [int]$row["NUMERO_ITEM"]
-            # Agrega y reemplaza columna PRODUCTO_ID por entero antes de comparar
-            $row[$spFields[3]] = [int]$row["PRODUCTO_ID"]
             # Agrega y reemplaza columna SECTOR_ID por entero antes de comparar
-            $row[$spFields[4]] = [int]$row["SECTOR_ID"]
+            $row[$spFields[5]] = [int]$row["SECTOR_ID"]
+            # Agrega y reemplaza columna EMPRESA_ID por entero antes de comparar
+            $row[$spFields[6]] = [int]$row["EMPRESA_ID"]
             # Agrega y reemplaza columna CANTIDAD por entero antes de comparar
-            $row[$spFields[5]] = [int]$row["CANTIDAD"]
+            $row[$spFields[7]] = [int]$row["CANTIDAD"]
+            # Agrega y reemplaza columna ID_CONCAT por entero antes de comparar
+            $row[$spFields[11]] = [int]$row["ID_CONCAT"]
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
             # Compara las primary key de Sharepoint con las de SQL
@@ -173,6 +175,7 @@ function Main() {
         $afterCount = $beforeCount + $added
         # Realiza el HTTP POST para agregar o actualizar en bloque
         Invoke-PnPBatch $spBatch
+        Disconnect-PnPOnline
         # Display results with SQL and SPLIST row counts
         Write-Yellow "Filas de Sharepoint Inicial    = $($beforeCount)"
         Write-Yellow "Filas de Sharepoint Final      = $($afterCount)"

@@ -47,8 +47,8 @@ function ConvertFrom-DataRow {
 }
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
-$spSite = "AppHojasPicking"
-$spListName = "HOJA_PICKING"
+$spSite = "GUIAS_PENDIENTES"
+$spListName = "PEND_GUIAS"
 # Tabla SQL a Actualizar
 $sqlTable = "[dbo].[HP_PROVEEDOR]"
 $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
@@ -65,7 +65,7 @@ $spQuery = "<View>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>30000</Value>
+                                <Value Type='Number'>60000</Value>
                             </Lt>
                         </And>
                     </Where>

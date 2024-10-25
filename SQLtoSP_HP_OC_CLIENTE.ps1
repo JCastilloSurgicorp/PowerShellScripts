@@ -8,7 +8,7 @@
         * Script will update rows in the SharePoint List that are different in the SQL table.
         * Script will not update rows in the SharePoint List that are the same in the SQL table.
 .EXAMPLE
-    C:\> .\sql_to_sp_withQuery_GR.ps1
+    C:\> .\sql_to_sp_withQuery_HP.ps1
 .NOTES
     File Name:  sql_to_sp_withQuery_HP.ps1
     Version:    1.0
@@ -86,9 +86,9 @@ function Main() {
     $sqlUser = "powerapps"
     $sqlPass = "*Surgi007"
     # Datos del QUERY
-    $sqlTable = "GR_DESCRIPCION_OC"
-    $sqlcollumns = "id, NUMERO_GUIA, NUMERO_ITEM, PRODUCTO, PROVEEDOR, SECTOR_ID, CANTIDAD, LOTE, VENCIMIENTO_LOTE, EMPRESA_ID, UBICACION_SECTOR, ID_CONCAT, OC_CLIENTE"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 8000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
+    $sqlTable = "HOJA_PICKING"
+    $sqlcollumns = "id,NUMERO_GUIA,OC_CLIENTE,ATENCION,FECHA_ATENCION,LIMA_PROVINCIA,EMPRESA_ID"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 60000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable WHERE OC_CLIENTE <> '' ORDER BY id DESC) AS G ORDER BY G.id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -114,12 +114,12 @@ function Main() {
         # STEP 2 - Connect SPO
         # Datos del SharePoint
         $spEmpresa = "appsurgicorp"
-        $spSite = "AppOrdenesdeCompra-Dev"
-        $spListName = "GR_DESCRIPCION_OC"
+        $spSite = "AppHojasPicking"
+        $spListName = "HOJA_PICKING"
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID","NUMERO_GUIA","NUMERO_ITEM","PRODUCTO","PROVEEDOR","SECTOR_ID","EMPRESA_ID","CANTIDAD","LOTE","VENCIMIENTO_LOTE","UBICACION_SECTOR","ID_CONCAT","OC_CLIENTE"
+        $spFields = "ID","NUMERO_GUIA","OC_CLIENTE","ATENCION","FECHA_ATENCION", "LIMA_PROVINCIA", "EMPRESA_ID"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -131,6 +131,7 @@ function Main() {
                         </Query>
                         <RowLimit>1</RowLimit>
                     </View>"
+        
         # Connect to PnP Online Using ENTRA: 
         Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl
         # Get List Items 
@@ -141,6 +142,7 @@ function Main() {
         Write-Yellow "`nTiempo de Get-ListItem: $($totaltime1.tostring("hh\:mm\:ss"))`n"
         # Measure changes to SPLIST
         $added = 0
+        $updated = 0
         # Measure SPLIST rows before and after
         $beforeCount = $spDestination.Count
         $afterCount = $sqlSourceHash.Count
@@ -149,27 +151,56 @@ function Main() {
 
         # STEP 3 - Add or update SPLIST items on destination by comparing primary keys
         foreach ($row in $sqlSourceHash) {
-            # Agrega la columna ID antes de comparar
+            # Formatea la columna id antes de comparar
             $row[$sqlPrimaryKey] = [int]$row[$sqlPrimaryKey]
-            # Agrega y reemplaza columna NUMERO_ITEM por entero antes de comparar
-            $row[$spFields[2]] = [int]$row["NUMERO_ITEM"]
-            # Agrega y reemplaza columna SECTOR_ID por entero antes de comparar
-            $row[$spFields[5]] = [int]$row["SECTOR_ID"]
-            # Agrega y reemplaza columna EMPRESA_ID por entero antes de comparar
-            $row[$spFields[6]] = [int]$row["EMPRESA_ID"]
-            # Agrega y reemplaza columna CANTIDAD por entero antes de comparar
-            $row[$spFields[7]] = [int]$row["CANTIDAD"]
-            # Agrega y reemplaza columna ID_CONCAT por entero antes de comparar
-            $row[$spFields[11]] = [int]$row["ID_CONCAT"]
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
+            # Formatea el campo FECHA_ATENCION
+            $row[$spFields[4]] = $row[$spFields[4]].DateTime
+            # Formatea el campo EMPRESA_ID
+            $row[$spFields[6]] = [int]$row[$spFields[6]]
             # Compara las primary key de Sharepoint con las de SQL
-            if ($spDestination.Count -lt $pk){
-                $row.remove("id")
+            $spMatchItem = $spDestination | Where-Object { $_[$spFields[0]] -eq $pk }
+            $pk
+            # First matched SPLIST row only
+            if ($spMatchItem -is [System.Array]) {
+                $spMatchItem = $spMatchItem[0]
+            }
+            # If row does not exist, write it
+            if (!$spMatchItem) {
+                #Si el PK es el ID removemos el ID ya que sharepoint crea ID automanticamente
+                #$row.remove($sqlPrimaryKey)
                 # Insert row
-                Add-PnPListItem -List $spListName -Values $row -Batch $spBatch
+                #Add-PnPListItem -List $spListName -Values $row -Batch $spBatch
                 $added++
-                Write-Blue "Agregando: $sqlPrimaryKey = $pk"
+                Write-Blue "No Existe: $sqlPrimaryKey = $pk"
+            }
+            else {
+                # If row does exist, update it
+                # Crea el hash de Sharepoint y formatea el Id0 para comparar los Hash
+                $hashsp = ([Hashtable]$spMatchItem.FieldValues) | Select-Object ($spFields | Select-Object -First 10)
+                $hashsp."ID" = [int]$hashsp."ID"
+                #$hashsp."FECHA_ATENCION" = $hashsp."FECHA_ATENCION".DateTime
+                $hashsp."EMPRESA_ID" = [int]$hashsp."EMPRESA_ID"
+                if($null -eq $hashsp."OC_CLIENTE"){
+                    $hashsp."OC_CLIENTE"=''
+                }
+                # Crea el hash de SQL para comparar
+                $hash = ($row | Select-Object ($spFields | Select-Object -First 10))
+                # Compara los hash para verificar si se necesita actualizar
+                $needUpdate = (ConvertTo-Json $hash) -ne (ConvertTo-Json $hashsp)
+                # Si necesita actualizar, realiza la actualización
+                if ($needUpdate) {
+                    ConvertTo-Json $hashsp
+                    ConvertTo-Json $hash
+                    #Si el PK es el ID removemos el ID ya que sharepoint crea ID automanticamente
+                    $row.remove($sqlPrimaryKey)
+                    # Agrega al Batch para actualizar en bloque
+                    Set-PnPListItem -List $spListName -Identity $spMatchItem.ID -Values $row -Batch $spBatch
+                    Write-Blue "Actualizando: $pk"
+                    $updated++
+                    $needUpdate = $false
+                } 
             }
         }
         $afterCount = $beforeCount + $added
@@ -181,6 +212,7 @@ function Main() {
         Write-Yellow "Filas de Sharepoint Final      = $($afterCount)"
         Write-Red "----------------------------------------"
         Write-Green  "Agregados                      = $added"
+        Write-Green  "Actualizados                   = $updated"
     }
 }
 

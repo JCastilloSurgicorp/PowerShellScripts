@@ -88,7 +88,7 @@ function Main() {
     # Datos del QUERY
     $sqlTable = "STOCKS_INVENTARIO"
     $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id, CODIGO_QR"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 500 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 100 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -119,7 +119,7 @@ function Main() {
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID", "STOCK", "LOTE", "TIPO_ALMACENAJE", "DESCRIPCION_DEPOSITO", "REGISTRO_SANITARIO", "DEPOSITO_ID", "PRODUCTO_ID", "SECTOR_ID", "TipoAlm_ID", "TipoProd_ID", "VIGENCIA_LOTE", "FECHA_VIGENCIA_REGSAN", "ID_SQL"
+        $spFields = "ID", "STOCK", "LOTE", "TIPO_ALMACENAJE", "DESCRIPCION_DEPOSITO", "REGISTRO_SANITARIO", "DEPOSITO_ID", "PRODUCTO_ID", "SECTOR_ID", "TipoAlm_ID", "TipoProd_ID", "VIGENCIA_LOTE", "FECHA_VIGENCIA_REGSAN", "ID_SQL", "CODIGO_QR"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -151,7 +151,7 @@ function Main() {
 
         # STEP 3 - Add or update SPLIST items on destination by comparing primary keys
         foreach ($row in $sqlSourceHash) {
-            # Agrega y reemplaza columna id por ID antes de comparar
+            # Agrega y reemplaza columna id por ID_SQL antes de comparar
             $row[$spFields[13]] = [int]$row[$sqlPrimaryKey]
             #$row.remove($sqlPrimaryKey)
             # Formatea columna STOCK antes de comparar
