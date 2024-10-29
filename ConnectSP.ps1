@@ -65,7 +65,7 @@ $spQuery = "<View>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>60000</Value>
+                                <Value Type='Number'>200000</Value>
                             </Lt>
                         </And>
                     </Where>

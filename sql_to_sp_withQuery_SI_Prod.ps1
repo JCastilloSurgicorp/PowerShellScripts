@@ -86,9 +86,9 @@ function Main() {
     $sqlUser = "powerapps"
     $sqlPass = "*Surgi007"
     # Datos del QUERY
-    $sqlTable = "STOCKS_INVENTARIO"
-    $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id, CODIGO_QR"
-    $sqlQuery = "SELECT * FROM (SELECT TOP 20 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
+    $sqlTable = "SI_Productos"
+    $sqlcollumns = "id, PRODUCTO, DESCRIPCION_PRODUCTO, PROVEEDOR_ID, GRUPO"
+    $sqlQuery = "SELECT * FROM (SELECT TOP 20000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
     $Conection = New-Object SqlClient.SqlConnection
@@ -115,11 +115,11 @@ function Main() {
         # Datos del SharePoint
         $spEmpresa = "appsurgicorp"
         $spSite = "AppStockInventarios"
-        $spListName = "STOCK_INVENTARIO"
+        $spListName = "SI_PRODUCTO"
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID", "STOCK", "LOTE", "TIPO_ALMACENAJE", "DESCRIPCION_DEPOSITO", "REGISTRO_SANITARIO", "DEPOSITO_ID", "PRODUCTO_ID", "SECTOR_ID", "TipoAlm_ID", "TipoProd_ID", "VIGENCIA_LOTE", "FECHA_VIGENCIA_REGSAN", "ID_SQL", "CODIGO_QR"
+        $spFields = "ID", "Title", "DESCRIPCION_PRODUCTO", "PROVEEDOR_ID", "GRUPO"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -151,29 +151,11 @@ function Main() {
 
         # STEP 3 - Add or update SPLIST items on destination by comparing primary keys
         foreach ($row in $sqlSourceHash) {
-            # Agrega y reemplaza columna id por ID_SQL antes de comparar
-            $row[$spFields[13]] = [int]$row[$sqlPrimaryKey]
-            #$row.remove($sqlPrimaryKey)
-            # Formatea columna STOCK antes de comparar
-            $row["STOCK"] = [int]$row["STOCK"]
-            # Agrega y reemplaza columna dep_id_id por DEPOSITO_ID antes de comparar
-            $row[$spFields[6]] = [int]$row["dep_id_id"]
-            $row.remove("dep_id_id")
-            # Agrega y reemplaza columna prod_id_id por dep_id_id antes de comparar
-            $row[$spFields[7]] = [int]$row["prod_id_id"]
-            $row.remove("prod_id_id")
-            # Agrega y reemplaza columna sector_id_id por dep_id_id antes de comparar
-            $row[$spFields[8]] = [int]$row["sector_id_id"]
-            $row.remove("sector_id_id")
-            # Agrega y reemplaza columna tipoAlm_id_id por dep_id_id antes de comparar
-            $row[$spFields[9]] = [int]$row["tipoAlm_id_id"]
-            $row.remove("tipoAlm_id_id")
-            # Agrega y reemplaza columna tipoProd_id_id por dep_id_id antes de comparar
-            $row[$spFields[10]] = [int]$row["tipoProd_id_id"]
-            $row.remove("tipoProd_id_id")
-            # Agrega y reemplaza columna FECHA_VIGENCIA_LOTE por VIGENCIA_LOTE antes de comparar
-            $row[$spFields[11]] = $row["FECHA_VIGENCIA_LOTE"]
-            $row.remove("FECHA_VIGENCIA_LOTE")
+            # Reemplaza la columna PRODUCTO antes de comparar
+            $row[$spFields[1]] = $row["PRODUCTO"]
+            $row.remove("PRODUCTO")
+            # Formatea la columna PROVEEDOR_ID antes de comparar
+            $row[$spFields[3]] = [int]$row[$spFields[3]]
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
             # Compara las primary key de Sharepoint con las de SQL
