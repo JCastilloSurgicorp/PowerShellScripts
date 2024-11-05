@@ -87,7 +87,7 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "STOCKS_INVENTARIO"
-    $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id"
+    $sqlcollumns = "id, STOCK, LOTE, FECHA_VIGENCIA_LOTE, TIPO_ALMACENAJE, DESCRIPCION_DEPOSITO, REGISTRO_SANITARIO, FECHA_VIGENCIA_REGSAN, dep_id_id, prod_id_id, sector_id_id, tipoAlm_id_id, tipoProd_id_id, CODIGO_QR, PRODUCTO"
     $sqlQuery = "SELECT $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable order by id"
     #not(OC_CLIENTE='' or OC_CLIENTE is null) and FECHA_GUIA >= Cast(CURRENT_TIMESTAMP as date)
     $sqlPrimaryKey = "id"
@@ -116,11 +116,11 @@ function Main() {
         # Datos del SharePoint
         $spEmpresa = "appsurgicorp"
         $spSite = "AppStockInventarios"
-        $spListName = "STOCK_INVENTARIO2"
+        $spListName = "STOCK_INVENTARIO"
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID", "STOCK", "LOTE", "TIPO_ALMACENAJE", "DESCRIPCION_DEPOSITO", "REGISTRO_SANITARIO", "DEPOSITO_ID", "PRODUCTO_ID", "SECTOR_ID", "TipoAlm_ID", "TipoProd_ID", "VIGENCIA_LOTE", "FECHA_VIGENCIA_REGSAN"
+        $spFields = "ID", "STOCK", "LOTE", "TIPO_ALMACENAJE", "DESCRIPCION_DEPOSITO", "REGISTRO_SANITARIO", "DEPOSITO_ID", "PRODUCTO_ID", "SECTOR_ID", "TipoAlm_ID", "TipoProd_ID", "ID_SQL", "CODIGO_QR", "PRODUCTO","VIGENCIA_LOTE", "FECHA_VIGENCIA_REGSAN"
         $spQuery = "<View>  
                         <Query>
                             <Where>
@@ -155,6 +155,8 @@ function Main() {
         foreach ($row in $sqlSourceHash) {
             # Agrega y reemplaza columna id por ID antes de comparar
             $row[$spFields[0]] = [int]$row[$sqlPrimaryKey]
+            # Agrega y reemplaza columna id por ID_SQL antes de comparar
+            $row[$spFields[11]] = [int]$row[$sqlPrimaryKey]
             #$row.remove($sqlPrimaryKey)
             # Formatea columna STOCK antes de comparar
             $row["STOCK"] = [int]$row["STOCK"]
@@ -174,13 +176,12 @@ function Main() {
             $row[$spFields[10]] = [int]$row["tipoProd_id_id"]
             $row.remove("tipoProd_id_id")
             # Agrega y reemplaza columna FECHA_VIGENCIA_LOTE por VIGENCIA_LOTE antes de comparar
-            $row[$spFields[11]] = $row["FECHA_VIGENCIA_LOTE"]
+            $row[$spFields[15]] = $row["FECHA_VIGENCIA_LOTE"]
             $row.remove("FECHA_VIGENCIA_LOTE")
             # Crea la primary key de SQL que se usará para comparar
             $pk = $row[$spFields[0]]
-            # Compara las primary key de Sharepoint con las de SQL
-            $spMatchItem = $spDestination | Where-Object { $_[$spFields[0]] -eq $pk }
-            $pk
+            # Compara ID_SQL de Sharepoint con la primary key de SQL
+            $spMatchItem = $spDestination | Where-Object { $_[$spFields[11]] -eq $pk }
             # First matched SPLIST row only
             if ($spMatchItem -is [System.Array]) {
                 $spMatchItem = $spMatchItem[0]
@@ -197,7 +198,7 @@ function Main() {
             else {
                 # If row does exist, update it
                 # Crea el hash de Sharepoint y formatea el Id0 para comparar los Hash
-                $hashsp = ([Hashtable]$spMatchItem.FieldValues) | Select-Object ($spFields | Select-Object -First 10)
+                $hashsp = ([Hashtable]$spMatchItem.FieldValues) | Select-Object ($spFields | Select-Object -First 15)
                 $hashsp."ID" = [int]$hashsp."ID"
                 $hashsp."STOCK" = [int]$hashsp."STOCK"
                 $hashsp."DEPOSITO_ID" = [int]$hashsp."DEPOSITO_ID"
