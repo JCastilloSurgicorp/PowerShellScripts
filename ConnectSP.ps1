@@ -47,8 +47,8 @@ function ConvertFrom-DataRow {
 }
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
-$spSite = "GUIAS_PENDIENTES"
-$spListName = "PEND_GUIAS"
+$spSite = "SurgiCorpApp"
+$spListName = "Formulario Solicitudes de Pedido"
 # Tabla SQL a Actualizar
 $sqlTable = "[dbo].[HP_PROVEEDOR]"
 $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
@@ -79,6 +79,8 @@ $start = Get-Date
 $spListItems =  Get-PnPListItem -List $spListName -PageSize 4000 -Query $spQuery 
 $end1 = Get-Date
 $totaltime = $end1 - $start
+$totalSize = 0
+$sizeInMB = 0
 $deleted = 0
 $count = 0
 Write-Yellow "`nTiempo de Get-ListItem: $($totaltime.tostring("hh\:mm\:ss"))"
@@ -87,7 +89,7 @@ if($spListItems.Count -eq 0 || $null -eq $spListItems) {
     Write-Host "No hay datos en la tabla: $spListName." -ForegroundColor "Red"
 } else {
     # Opciones para la Sharepoint List
-    $option = Read-Host "Que desea hacer con los items encontrados en la Lista '$spListName'? `n([D]Delete / [E]Export SQL / [F]Filter / [U]Update / [I]Import Fron Excel)"
+    $option = Read-Host "Que desea hacer con los items encontrados en la Lista '$spListName'? `n([D]Delete / [E]Export SQL / [F]Filter / [U]Update / [I]Import Fron Excel) / [S]Size of SP List"
     if($option -contains "D"){
         # Create a New Batch
         $Batch = New-PnPBatch
@@ -225,5 +227,22 @@ if($spListItems.Count -eq 0 || $null -eq $spListItems) {
         Disconnect-PnPOnline
         # Conteo de los registros Agregados
         Write-Host "`nTotal de Registros Agregados: $count" -ForegroundColor "DarkGreen"
+    }
+    elseif ($option -contains "S") {
+        foreach ($item in $spListItems) {
+            # Get size of attachments
+            $attachments = Get-PnPProperty -ClientObject $item -Property AttachmentFiles
+            foreach ($attachment in $attachments) {
+                $totalSize += $attachment.Length
+            }
+            # Estimate metadata size (fields)
+            $metadataSize = ([System.Text.Encoding]::UTF8.GetByteCount(($item.FieldValues | Out-String)))
+            $totalSize += $metadataSize
+            $sizeInMB += $totalSize / 1MB 
+            Write-host "Acum Size in MB: $sizeInMB - "$item.ID -ForegroundColor "Cyan"
+        }
+        # Convert to MB
+        $sizeInMB = $totalSize / 1MB
+        Write-Host "Total size of the list: $sizeInMB GB" -ForegroundColor "Green"
     }
 }
