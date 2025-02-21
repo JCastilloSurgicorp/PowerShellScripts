@@ -47,8 +47,8 @@ function ConvertFrom-DataRow {
 }
 # SharePoint Site Data
 $spEmpresa = "appsurgicorp"
-$spSite = "SurgiCorpApp"
-$spListName = "Formulario Solicitudes de Pedido"
+$spSite = "AppFacturacion"
+$spListName = "BBDDFacturaciones"
 # Tabla SQL a Actualizar
 $sqlTable = "[dbo].[HP_PROVEEDOR]"
 $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
@@ -61,18 +61,18 @@ $spQuery = "<View>
                         <And>
                             <Gt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>0</Value>
+                                <Value Type='Number'>145290</Value>
                             </Gt>
                             <Lt>
                                 <FieldRef Name='ID'/>
-                                <Value Type='Number'>90000</Value>
+                                <Value Type='Number'>145293</Value>
                             </Lt>
                         </And>
                     </Where>
                 </Query>
             </View>"
 # Connect to PnP Online Using ENTRA: 
-Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl
+Connect-PnPOnline -Tenant appsurgicorp.onmicrosoft.com -ClientId $spClientId -Thumbprint $spThumbPrint -Url $spUrl 
 
 $start = Get-Date
 # Get List Items 
@@ -85,11 +85,12 @@ $deleted = 0
 $count = 0
 Write-Yellow "`nTiempo de Get-ListItem: $($totaltime.tostring("hh\:mm\:ss"))"
 Write-host "Total Number of Items Found: "$spListItems.Count -ForegroundColor "Cyan"
+
 if($spListItems.Count -eq 0 || $null -eq $spListItems) {
     Write-Host "No hay datos en la tabla: $spListName." -ForegroundColor "Red"
 } else {
     # Opciones para la Sharepoint List
-    $option = Read-Host "Que desea hacer con los items encontrados en la Lista '$spListName'? `n([D]Delete / [E]Export SQL / [F]Filter / [U]Update / [I]Import Fron Excel) / [S]Size of SP List"
+    $option = Read-Host "Que desea hacer con los items encontrados en la Lista '$spListName'? `n([D]Delete / [E]Export SQL / [F]Filter / [U]Update / [I]Import Fron Excel) / [S]Size of SP List / [V]Versions"
     if($option -contains "D"){
         # Create a New Batch
         $Batch = New-PnPBatch
@@ -244,5 +245,38 @@ if($spListItems.Count -eq 0 || $null -eq $spListItems) {
         # Convert to MB
         $sizeInMB = $totalSize / 1MB
         Write-Host "Total size of the list: $sizeInMB GB" -ForegroundColor "Green"
+    }
+    elseif ($option -contains "V"){
+        # 145292
+        $ItemId = Read-Host "Ingrese el N° de ID a consultar"
+        $item = Get-PnPListItem -List $spListName -Id $ItemId
+        # Get List Items Versions
+        $versions = Get-PnPProperty -ClientObject $item -Property Versions
+        $listItemVersionHistory = @()
+        foreach ($version in $versions) {   
+
+            $fieldValues = $version.FieldValues
+
+            $fieldValuesFormatted = New-Object -TypeName PSObject
+            foreach ($field in $fieldValues.GetEnumerator()) {
+                $fieldName = $field.Key
+                $fieldValue = $field.Value
+                if ([string]::IsNullOrEmpty($FieldNames) -or ($FieldNames.Split(',') -contains $fieldName)) {
+                    $fieldValuesFormatted | Add-Member -MemberType NoteProperty -Name $fieldName -Value $fieldValue
+                }
+            }
+            #if ($version.VersionLabel -eq "10.0") {
+                #Write-Host "Version $($version.VersionLabel) found!"
+                $listItemVersionHistory += [PSCustomObject]@{
+                    VersionLabel = $version.VersionLabel
+                    VersionId = $version.VersionId
+                    IsCurrentVersion = $version.IsCurrentVersion
+                    Created = $version.Created
+                    CreatedBy = Get-PnPProperty -ClientObject $version.CreatedBy -Property Title
+                    FieldValues = $fieldValuesFormatted | ConvertTo-Json -Compress
+                }
+            #}
+        }
+        Write-Host $listItemVersionHistory -ForegroundColor "Green"
     }
 }
