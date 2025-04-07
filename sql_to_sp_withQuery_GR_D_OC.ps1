@@ -87,7 +87,7 @@ function Main() {
     $sqlPass = "*Surgi007"
     # Datos del QUERY
     $sqlTable = "GR_DESCRIPCION_OC"
-    $sqlcollumns = "id, NUMERO_GUIA, NUMERO_ITEM, PRODUCTO, PROVEEDOR, SECTOR_ID, CANTIDAD, LOTE, VENCIMIENTO_LOTE, EMPRESA_ID, UBICACION_SECTOR, ID_CONCAT"
+    $sqlcollumns = "id, NUMERO_GUIA, NUMERO_ITEM, PRODUCTO, PROVEEDOR, SECTOR_ID, CANTIDAD, LOTE, VENCIMIENTO_LOTE, EMPRESA_ID, UBICACION_SECTOR, ID_CONCAT, OC_CLIENTE"
     $sqlQuery = "SELECT * FROM (SELECT TOP 8000 $sqlcollumns FROM SURGICORP_POWERAPPS.dbo.$sqlTable ORDER BY id DESC) AS G ORDER BY G.id"  #FECHA_GUIA >= DATEADD(DAY,-1,CURRENT_TIMESTAMP)"
     $sqlPrimaryKey = "id"
     # Iniciando Conexión
@@ -119,7 +119,7 @@ function Main() {
         $spUrl = "https://$spEmpresa.sharepoint.com/sites/$spSite/"
         $spClientId = "50e9c267-2992-4b87-9f5b-221430ec4a2f"
         $spThumbPrint = "9BC8DC618818698BB996CF0183C155A8ECAF6B05"
-        $spFields = "ID","NUMERO_GUIA","NUMERO_ITEM","PRODUCTO","PROVEEDOR","SECTOR_ID","EMPRESA_ID","CANTIDAD","LOTE","VENCIMIENTO_LOTE","UBICACION_SECTOR","ID_CONCAT"
+        $spFields = "ID","NUMERO_GUIA","NUMERO_ITEM","PRODUCTO_ID","SECTOR_ID","CANTIDAD","LOTE","VENCIMIENTO_LOTE"
         $spQuery = "<View>  
                         <Query>
                             <Where>
