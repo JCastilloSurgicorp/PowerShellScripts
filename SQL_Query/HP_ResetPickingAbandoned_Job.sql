@@ -3,17 +3,17 @@ GO
 
 -- Crear el trabajo
 EXEC dbo.sp_add_job
-    @job_name = N'ResetPickingAbandoned_Job',
+    @job_name = N'HP_ResetPickingAbandoned_Job',
     @enabled = 1,
     @description = N'Resetea sesiones de picking abandonadas cada 2 minutos';
 GO
 
 -- Agregar paso al trabajo
 EXEC sp_add_jobstep
-    @job_name = N'ResetPickingAbandoned_Job',
-    @step_name = N'Ejecutar ResetPickingAbandoned',
+    @job_name = N'HP_ResetPickingAbandoned_Job',
+    @step_name = N'Ejecutar HP_AbandonedSession_SP',
     @subsystem = N'TSQL',
-    @command = N'EXEC ResetPickingAbandoned;',
+    @command = N'EXEC HP_AbandonedSession_SP;',
     @database_name = N'SURGICORP_ERP'; 
 GO
 
@@ -30,12 +30,14 @@ GO
 
 -- Asignar programación al trabajo
 EXEC sp_attach_schedule
-    @job_name = N'ResetPickingAbandoned_Job',
+    @job_name = N'HP_ResetPickingAbandoned_Job',
     @schedule_name = N'HP_Cada_2_Minutos';
 GO
 
 -- Asignar trabajo al servidor local
 EXEC sp_add_jobserver
-    @job_name = N'ResetPickingAbandoned_Job',
+    @job_name = N'HP_ResetPickingAbandoned_Job',
     @server_name = N'(local)';
 GO
+
+EXEC msdb.dbo.sp_start_job N'HP_ResetPickingAbandoned_Job';
