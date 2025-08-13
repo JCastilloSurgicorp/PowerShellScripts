@@ -20,7 +20,7 @@ SELECT TOP 2000 * FROM [dbo].GUIAS_REMISION
 --WHERE NUMERO_GUIA = 'T001-46938'
 ORDER BY id desc
 SELECT * FROM [dbo].HOJA_PICKING 
-WHERE NUMERO_GUIA = 'T001-46910'
+--WHERE NUMERO_GUIA = 'T001-46910'
 --WHERE APP_SESSION_ACTIVE is not null
 ORDER BY id desc
 SELECT * FROM [dbo].[HP_UPDATE_AUDIT] 
@@ -61,3 +61,21 @@ WHERE NUMERO_GUIA = i.FCRMVH_NROGUI and EMPRESA_ID = i.FCRMVH_CODEMP*/
 		TRANSFERENCIA = i.FCRMVH_DESDPT
 FROM [USR_FCRMVH] as i
 WHERE NUMERO_GUIA = i.FCRMVH_NROGUI and EMPRESA_ID = i.FCRMVH_CODEMP*/
+
+--SELECT USER_NAME();
+--EXEC sp_who2; 
+--SELECT SESSION_USER usuario_BD_sesion, 
+--       CURRENT_USER usuario_BD_actual, 
+--       SYSTEM_USER  usuario_sistema, 
+--       ORIGINAL_LOGIN() login_usado_inicialmente, 
+--       SUSER_SNAME() nombe_login_asociado_a_la_sesion;
+
+UPDATE HOJA_PICKING
+	--SET USUARIO = 'Jairo Castillo'
+	SET USUARIO = 'Creado por Servidor'
+WHERE NUMERO_GUIA = '0000'
+
+--create credential ##xp_cmdshell_proxy_account##
+--with
+--identity = 'surgi\srvcaminitos',
+--secret = 'Sistemas@2023'
