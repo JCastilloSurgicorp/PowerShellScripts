@@ -159,7 +159,6 @@ BEGIN
 	DROP TABLE ProcessDebug;
 END;
 GO
-
 -- Verificar la tabla [dbo].[BrokerDebugLog]:
 SELECT * FROM [dbo].[BrokerDebugLog]
 ORDER BY LogID DESC;

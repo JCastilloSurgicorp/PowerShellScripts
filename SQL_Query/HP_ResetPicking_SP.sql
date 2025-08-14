@@ -17,22 +17,30 @@ BEGIN
 		  AND LAST_HEARTBEAT_RECEIVED < DATEADD(MINUTE, -6, GETUTCDATE())
 	END TRY
 	BEGIN CATCH
-		DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
-		DECLARE @SeveridadError INT = ERROR_SEVERITY();
-		DECLARE @EstadoError INT = ERROR_STATE();
-
-		INSERT INTO [dbo].[GR_UPDATE_AUDIT] (
-			[ID_CONCAT],
-			[NUMERO_GUIA],
-			[EMPRESA_ID],
-			[NUMERO_ITEM],
-			[ESTADO_OLD],
-			[ESTADO_NEW],
-			[FECHA_HORA]
-		)
-		VALUES ('HP_AbandonedSession_SP', '-', @SeveridadError, @EstadoError, 'ERROR', @MensajeError, CURRENT_TIMESTAMP);
-
-		RAISERROR(@MensajeError,@SeveridadError,@EstadoError)
-		ROLLBACK TRANSACTION
+		-- Rollback si hay transaccion activa
+		DECLARE @XState INT = XACT_STATE();
+		IF @XState = -1 OR @XState = 1 
+			ROLLBACK TRANSACTION;
+		-- Intentar ingresar error en la tabla GR_UPDATE_AUDIT
+		BEGIN TRY
+			DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
+			DECLARE @SeveridadError INT = ERROR_SEVERITY();
+			DECLARE @EstadoError INT = ERROR_STATE();
+			DECLARE @LogMessage NVARCHAR(4000) = CONCAT(
+				'HP_AbandonedSession_SP -> Error: ', @EstadoError,
+				' | Severidad: ', @SeveridadError,
+				' | Mensaje: ', @MensajeError
+			);
+			INSERT INTO [dbo].[GR_UPDATE_AUDIT] ([ID_CONCAT], [NUMERO_GUIA], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA])
+				VALUES ('HP_AbandonedSession_SP', CONCAT('HP_AbandonedSession_SP -> Error: ', @EstadoError,' | Severidad: ', @SeveridadError), 'ERROR', @MensajeError, GETUTCDATE());
+			RAISERROR(@LogMessage, 0, 1) WITH LOG;
+		END TRY
+		BEGIN CATCH
+			-- capturar y mandar al log el error del insert de la tabla GR_UPDATE_AUDIT
+			DECLARE @MensajeError2 NVARCHAR(4000) = ERROR_MESSAGE();
+			DECLARE @SeveridadError2 INT = ERROR_SEVERITY();
+			DECLARE @EstadoError2 INT = ERROR_STATE();
+			RAISERROR(@MensajeError2, @SeveridadError2, @EstadoError2) WITH LOG;
+		END CATCH
 	END CATCH
 END

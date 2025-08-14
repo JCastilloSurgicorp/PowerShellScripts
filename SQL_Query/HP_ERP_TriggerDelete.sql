@@ -1,27 +1,9 @@
--- ================================================
--- Template generated from Template Explorer using:
--- Create Trigger (New Menu).SQL
---
--- Use the Specify Values for Template Parameters 
--- command (Ctrl-Shift-M) to fill in the parameter 
--- values below.
---
--- See additional Create Trigger templates for more
--- examples of different Trigger statements.
---
--- This block of comments will not be included in
--- the definition of the function.
--- ================================================
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 -- =============================================
 -- Author:		<Author, Jairo Castillo>
 -- Create date: <Create Date, 16/07/25>
 -- Description:	<Description, Delete from [dbo].[HOJA_PICKING]>
 -- =============================================
-CREATE TRIGGER HP_ERP_TriggerDelete
+ALTER TRIGGER HP_ERP_TriggerDelete
    ON [dbo].[HOJA_PICKING]
    AFTER DELETE
 AS 
@@ -41,28 +23,31 @@ BEGIN
 		END
 	END TRY
 	BEGIN CATCH
-		DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
-		DECLARE @SeveridadError INT = ERROR_SEVERITY();
-		DECLARE @EstadoError INT = ERROR_STATE();
-		RAISERROR(@MensajeError, @SeveridadError, 1) WITH LOG
+		-- Rollback si hay transaccion activa
+		DECLARE @XState INT = XACT_STATE();
+		IF @XState = -1 OR @XState = 1 
+			ROLLBACK TRANSACTION;
+		-- Intentar ingresar error en la tabla GR_UPDATE_AUDIT
 		BEGIN TRY
-			INSERT INTO [dbo].[GR_UPDATE_AUDIT] (
-				[ID_CONCAT],
-				[NUMERO_GUIA],
-				[EMPRESA_ID],
-				[NUMERO_ITEM],
-				[ESTADO_OLD],
-				[ESTADO_NEW],
-				[FECHA_HORA]
-			)
-			VALUES ('HP_ERP_TriggerDelete', '-', @SeveridadError, @EstadoError, 'ERROR', @MensajeError, GETUTCDATE());
+			DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
+			DECLARE @SeveridadError INT = ERROR_SEVERITY();
+			DECLARE @EstadoError INT = ERROR_STATE();
+			DECLARE @LogMessage NVARCHAR(4000) = CONCAT(
+				'HP_ERP_TriggerDelete -> Error: ', @EstadoError,
+				' | Severidad: ', @SeveridadError,
+				' | Mensaje: ', @MensajeError
+			);
+			INSERT INTO [dbo].[GR_UPDATE_AUDIT] ([ID_CONCAT], [NUMERO_GUIA], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA])
+				VALUES ('HP_ERP_TriggerDelete', CONCAT('HP_ERP_TriggerDelete -> Error: ', @EstadoError,' | Severidad: ', @SeveridadError), 'ERROR', @MensajeError, GETUTCDATE());
+			RAISERROR(@LogMessage, 0, 1) WITH LOG;
 		END TRY
 		BEGIN CATCH
+			-- capturar y mandar al log el error del insert de la tabla GR_UPDATE_AUDIT
 			DECLARE @MensajeError2 NVARCHAR(4000) = ERROR_MESSAGE();
-			RAISERROR('Falló tabla de auditoría: %s', 0, 1, @MensajeError2) WITH LOG;
+			DECLARE @SeveridadError2 INT = ERROR_SEVERITY();
+			DECLARE @EstadoError2 INT = ERROR_STATE();
+			RAISERROR(@MensajeError2, @SeveridadError2, @EstadoError2) WITH LOG;
 		END CATCH
-		IF XACT_STATE() <> 0
-			ROLLBACK TRANSACTION;
 	END CATCH
 END
 GO
