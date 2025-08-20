@@ -11,28 +11,47 @@ BEGIN TRY
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
-	DECLARE @guia NVARCHAR(50) = (SELECT TOP 1 i.ANUGUI_NROGUI FROM inserted as i);
-	DECLARE @empresa INT = CAST((SELECT TOP 1 i.ANUGUI_CODEMP FROM inserted as i) as INT);
-	DECLARE @tipo NVARCHAR(2) = (SELECT TOP 1 i.ANUGUI_TIPREG FROM inserted as i);
     
-	IF EXISTS(SELECT hp.NUMERO_GUIA FROM HOJA_PICKING as hp WHERE hp.NUMERO_GUIA = @guia and hp.EMPRESA_ID = @empresa)
+	IF EXISTS(SELECT i.ANUGUI_NROGUI FROM inserted as i WHERE i.ANUGUI_TIPREG = 'S')
 	BEGIN
-		IF @tipo = 'S'
-		BEGIN
-			UPDATE HOJA_PICKING
-				SET SALIDA = 0,
-				USUARIO = 'Anulado por Servidor'
-			WHERE NUMERO_GUIA = @guia and
-				EMPRESA_ID = @empresa
-		END
-		IF @tipo = 'G'
-		BEGIN
-			UPDATE GUIAS_REMISION
-				SET ESTADO = 'ANU',
-				OBSERVACION = 'Anulado por Servidor | ' + GUIAS_REMISION.OBSERVACION
-			WHERE NUMERO_GUIA = @guia and
-				EMPRESA_ID = @empresa
-		END
+		UPDATE HOJA_PICKING
+			SET SALIDA = 0,
+			USUARIO = 'Anulado por Servidor'
+		FROM inserted as i
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'S'
+	END
+	IF EXISTS(SELECT i.ANUGUI_NROGUI FROM inserted as i WHERE i.ANUGUI_TIPREG = 'G')
+	BEGIN
+		-- Actualiza el estado de la Guia de Remisión
+		UPDATE GUIAS_REMISION
+			SET ESTADO = 'ANU',
+			OBSERVACION = 'Anulado por Servidor: ' + GUIAS_REMISION.OBSERVACION
+		FROM inserted as i
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'G';
+		-- Inserta en la tabla HP_UPDATE_AUDIT el registro picking a eliminar
+		INSERT INTO [dbo].[HP_UPDATE_AUDIT] ([ID_HP], [NUMERO_GUIA], [EMPRESA_ID], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA], [USUARIO])
+		SELECT d.id, d.NUMERO_GUIA, d.EMPRESA_ID, CAST(ISNULL(d.GR_ID, '') AS varchar(20)) + ' | ' + ISNULL(d.STATUS_PICKING, '') + ' | ' + ISNULL(d.ALMACEN, '') 
+			+ ' | ' + ISNULL(d.FIRMA_ALMACEN, '') + ' | ' + CAST(ISNULL(d.FECHA_ALMACEN, '') AS varchar(20)) + ' | ' + ISNULL(d.DISTRIBUCION, '') 
+			+ ' | ' + ISNULL(d.FIRMA_DISTRIBUCION, '') + ' | ' + CAST(ISNULL(d.FECHA_DISTRIBUCION, '') AS varchar(20)) + ' | ' + ISNULL(d.USUARIO, '') 
+			+ ' | Contingencia:' + CAST(ISNULL(d.CONTINGENCIA, '') AS varchar(20)) + ' | Salida:' + CAST(ISNULL(d.SALIDA, '') AS varchar(20)),
+			'DELETED', GETUTCDATE(), 'Eliminado por Servidor'
+		FROM HOJA_PICKING as d
+			INNER JOIN inserted as i 
+			ON NUMERO_GUIA = i.ANUGUI_NROGUI and
+				EMPRESA_ID = i.ANUGUI_CODEMP 
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'G';
+		-- Elimina la HOJA PICKING correspondiente
+		DELETE FROM HOJA_PICKING
+		FROM inserted as i
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'G'
 	END
 END TRY
 BEGIN CATCH
