@@ -23,10 +23,10 @@ BEGIN
 		END
 	END TRY
 	BEGIN CATCH
-		-- Rollback si hay transaccion activa
-		DECLARE @XState INT = XACT_STATE();
-		IF @XState = -1 OR @XState = 1 
-			ROLLBACK TRANSACTION;
+		---- Rollback si hay transaccion activa
+		--DECLARE @XState INT = XACT_STATE();
+		--IF @XState = -1 OR @XState = 1 
+		--	ROLLBACK TRANSACTION;
 		-- Intentar ingresar error en la tabla GR_UPDATE_AUDIT
 		BEGIN TRY
 			DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
@@ -43,7 +43,7 @@ BEGIN
 		END TRY
 		BEGIN CATCH
 			-- capturar y mandar al log el error del insert de la tabla GR_UPDATE_AUDIT
-			DECLARE @MensajeError2 NVARCHAR(4000) = ERROR_MESSAGE();
+			DECLARE @MensajeError2 NVARCHAR(4000) = 'HP_ERP_TriggerDelete: ' + ERROR_MESSAGE();
 			DECLARE @SeveridadError2 INT = ERROR_SEVERITY();
 			DECLARE @EstadoError2 INT = ERROR_STATE();
 			RAISERROR(@MensajeError2, @SeveridadError2, @EstadoError2) WITH LOG;
