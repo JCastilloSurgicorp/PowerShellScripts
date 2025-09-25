@@ -26,3 +26,38 @@ else
 begin
    Print 'xp_cmdshell is already enabled'
 end*/
+-- Crear CmdShellExecutor
+USE [master];
+GO
+CREATE LOGIN [CmdShellExecutor] WITH PASSWORD = 'j4ir0st123'; -- Cambia la contraseña
+GO
+USE [SURGICORP_ERP];
+GO
+CREATE USER [CmdShellExecutor] FOR LOGIN [CmdShellExecutor];
+GO
+USE [SURGICORP_ERP];
+GO
+GRANT EXECUTE ON [dbo].[CallDjangoNotificationAPI] TO [CmdShellExecutor];
+GRANT EXECUTE ON [dbo].[ProcessPickingNotifications] TO [CmdShellExecutor];
+GO
+-- Configurar el xp_cmdshell
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE;
+EXEC sp_configure 'xp_cmdshell', 1;
+RECONFIGURE;
+-- Crear proxy con cuenta windows
+EXEC sp_xp_cmdshell_proxy_account 'SURGI\srvcaminitos', 'Sistemas@2023';
+-- Crear Proxy manualmente
+USE [master];
+GO
+CREATE CREDENTIAL ##xp_cmdshell_proxy_account##
+WITH IDENTITY = 'SURGI\srvcaminitos',
+SECRET = 'Sistemas@2023';
+GO
+--GRANT IMPERSONATE ANY LOGIN TO [NT SERVICE\MSSQLSERVER];
+-- Borrar Proxy
+DROP CREDENTIAL ##xp_cmdshell_proxy_account##
+EXEC xp_cmdshell 'whoami';
+-- Permitir que el usuario actual ejecute xp_cmdshell
+GRANT EXECUTE ON sys.xp_cmdshell TO [SURGI\srvcaminitos];
+GRANT EXECUTE ON ProcessPickingNotifications TO [SURGI\srvcaminitos];

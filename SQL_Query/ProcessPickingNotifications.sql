@@ -3,7 +3,7 @@ WITH EXECUTE AS OWNER
 AS
 BEGIN
     SET NOCOUNT ON;
-	
+	SET IMPLICIT_TRANSACTIONS OFF;
 	-- Creamos tabla temporal debuglog
     CREATE TABLE ProcessDebug (
         Step NVARCHAR(50),
@@ -159,15 +159,39 @@ BEGIN
 	DROP TABLE ProcessDebug;
 END;
 GO
+
 -- Verificar la tabla [dbo].[BrokerDebugLog]:
 SELECT * FROM [dbo].[BrokerDebugLog]
 ORDER BY LogID DESC;
 -- Verificar si la tabla temporal sigue activa
 SELECT * FROM [dbo].[ProcessDebug]
 -- Borrar datos de la tabla DebugLog
---DELETE [DiagnosticMessages]
+--DELETE [ProcessDebug]
 --DBCC CHECKIDENT('DiagnosticMessages', RESEED, 0)
---DROP TABLE ProcessDebug
+--DROP TABLE [ProcessDebug]
+--BACKUP LOG SURGICORP_ERP TO DISK = 'NUL' WITH NOFORMAT, NOINIT, SKIP, NOREWIND, NOUNLOAD, STATS = 10;
+--ALTER DATABASE [TuBaseDeDatos] SET ENABLE_BROKER;
+
+-- Mandar señal directamente desde el procedimiento almacenado
+DECLARE @DialogHandle UNIQUEIDENTIFIER;
+DECLARE @Message XML;
+-- Crear mensaje XML con los IDs necesarios
+SELECT @Message = (
+	SELECT 192 AS PickingID
+	FOR XML PATH('PickingNotifications')
+);
+-- Iniciar diálogo
+BEGIN 
+	DIALOG CONVERSATION @DialogHandle
+	FROM SERVICE [PickingNotificationService]
+	TO SERVICE 'PickingNotificationService'
+	ON CONTRACT [PickingContract]
+	WITH ENCRYPTION = OFF;
+-- Enviar mensaje
+SEND ON CONVERSATION @DialogHandle
+	MESSAGE TYPE [PickingNotification] (@Message);
+
+--Error interno: The current transaction cannot be committed and cannot support operations that write to the log file. Roll back the transaction.
 
 -- Verificar tabla [dbo].[DiagnosticMessages]
 SELECT *, CAST(raw_message as XML) as message_ FROM [dbo].[DiagnosticMessages]
@@ -184,6 +208,17 @@ WHERE far_service = 'PickingNotificationService';
 
 SELECT CAST(message_body AS XML) AS message_body, *
 FROM dbo.PickingNotificationQueue WITH (NOLOCK);
+
+--SELECT 
+--    name,
+--    type_desc,
+--    is_activation_enabled
+--FROM sys.service_queues;
+
+-- Reactivar el PickingNotificationQueue:
+ALTER QUEUE PickingNotificationQueue WITH STATUS = ON;
+--ALTER QUEUE [dbo].[PickingNotificationQueue]
+--WITH EXECUTE AS OWNER;
 
 --Comprobar mensajes en la cola
 SELECT 
@@ -203,17 +238,36 @@ SELECT
 FROM sys.service_queues 
 WHERE name = 'PickingNotificationQueue';
 
+--Verificar sesiones con transacciones abiertas
+SELECT session_id, transaction_id, name as '[ProcessPickingNotifications]'
+FROM sys.dm_tran_active_transactions AS tat
+INNER JOIN sys.dm_exec_sessions AS es ON tat.transaction_id = es.open_transaction_count
+WHERE es.open_transaction_count > 0;
+
+-- Verificar permisos del procedimiento
+SELECT 
+    USER_NAME(principal_id) AS Ejecutor,
+    name AS Procedimiento
+FROM sys.procedures
+WHERE name = 'ProcessPickingNotifications';
 
 -- Procedimiento almacenado que hace el POST para activar las django signals
 ALTER PROCEDURE [dbo].[CallDjangoNotificationAPI](@picking_id INT)
-WITH EXECUTE AS 'CmdShellExecutor'
+WITH EXECUTE AS OWNER
 AS
 BEGIN
     DECLARE @url NVARCHAR(400) = 'https://appsurgicorperu.com/notificar_picking/';
     DECLARE @cmd VARCHAR(4000)
 	SET @cmd = 'curl -X POST ' + @url + ' -H "Content-Type: application/json" -d "{\"picking_id\": ' + CAST(@picking_id AS VARCHAR) + '}"'
 
-    EXEC xp_cmdshell @cmd, no_output
+    BEGIN TRY
+        EXEC xp_cmdshell @cmd, no_output;
+    END TRY
+    BEGIN CATCH
+        -- Solo registrar error, no afectar transacción principal
+		INSERT INTO dbo.BrokerDebugLog (Step, Error)
+		VALUES('CallDjangoNotificationAPI', 'Error en llamada API: ' + ERROR_MESSAGE());
+    END CATCH
 END;
 GO
 -- Comprobar que procedimiento almacenado funciona
@@ -226,6 +280,7 @@ BEGIN
     EXEC xp_cmdshell @cmd, no_output
 END;
 --Verficar exec notificaciones funciona
+USE master;
 DECLARE @picking_id INT = 192; -- Usar un ID existente
 EXEC dbo.CallDjangoNotificationAPI @picking_id;
 
@@ -276,6 +331,8 @@ SELECT COUNT(*) FROM sys.conversation_endpoints;
 SELECT COUNT(*) FROM sys.transmission_queue;
 
 -- Verificar estado del broker
+Use [SURGICORP_ERP];
+GO
 SELECT 
     name, 
     is_broker_enabled,
@@ -283,6 +340,24 @@ SELECT
 FROM sys.databases 
 WHERE name = DB_NAME();
 
+--Verifica conexiones activas
+SELECT 
+    session_id, 
+    login_name, 
+    status, 
+    host_name,
+    program_name,
+    last_request_start_time
+FROM sys.dm_exec_sessions
+WHERE database_id = DB_ID('SURGICORP_ERP');
+
+-- Habilitar Service Broker
+ALTER DATABASE [SURGICORP_ERP] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE [SURGICORP_ERP] SET ENABLE_BROKER;
+ALTER DATABASE [SURGICORP_ERP] SET MULTI_USER;
+
+-- * Desactivar la cola primero
+ALTER QUEUE [dbo].[PickingNotificationQueue] WITH ACTIVATION (STATUS = OFF);
 -- Recrear todos los objetos de Service Broker
 DROP SERVICE [PickingNotificationService];
 DROP QUEUE [dbo].[PickingNotificationQueue];
@@ -290,6 +365,7 @@ DROP CONTRACT [PickingContract];
 DROP MESSAGE TYPE [PickingNotification];
 
 -- Volver a crear en el orden correcto
+
 -- 1. Crear Message Type
 CREATE MESSAGE TYPE [PickingNotification]
     AUTHORIZATION dbo
@@ -319,7 +395,7 @@ WITH ACTIVATION (
 -- Crear tabla de logs del broker:
 CREATE TABLE dbo.BrokerDebugLog (
     LogID INT IDENTITY PRIMARY KEY,
-    LogTime DATETIME NOT NULL,
+    LogTime DATETIME DEFAULT GETUTCDATE(),
     Step NVARCHAR(100) NOT NULL,
     Details NVARCHAR(MAX) NULL,
 	Error NVARCHAR(MAX) NULL
