@@ -23,7 +23,16 @@ BEGIN TRY
 			i.ANUGUI_TIPREG = 'S'
 
 		UPDATE GUIAS_REMISION
-			SET SALIDA = 0
+			SET SALIDA = 0,
+			USUARIO = 'Anulado por Servidor'
+		FROM inserted as i
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'S'
+		
+		UPDATE [GR_REGULARIZACION]
+			SET SALIDA = 0,
+			USUARIO = 'Anulado por Servidor'
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
@@ -34,11 +43,22 @@ BEGIN TRY
 		-- Actualiza el estado de la Guia de Remisión
 		UPDATE GUIAS_REMISION
 			SET ESTADO = 'ANU',
+			USUARIO = 'Anulado por Servidor',
 			OBSERVACION = 'Anulado por Servidor: ' + GUIAS_REMISION.OBSERVACION
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
 			i.ANUGUI_TIPREG = 'G';
+		
+		UPDATE [GR_REGULARIZACION]
+			SET ESTADO = 'ANU',
+			USUARIO = 'Anulado por Servidor',
+			OBSERVACION = 'Anulado por Servidor: ' + [GR_REGULARIZACION].OBSERVACION
+		FROM inserted as i
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'G';
+		
 		-- Inserta en la tabla HP_UPDATE_AUDIT el registro picking a eliminar
 		INSERT INTO [dbo].[HP_UPDATE_AUDIT] ([ID_HP], [NUMERO_GUIA], [EMPRESA_ID], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA], [USUARIO])
 		SELECT d.id, d.NUMERO_GUIA, d.EMPRESA_ID, CAST(ISNULL(d.GR_ID, '') AS varchar(20)) + ' | ' + ISNULL(d.STATUS_PICKING, '') + ' | ' + ISNULL(d.ALMACEN, '') 

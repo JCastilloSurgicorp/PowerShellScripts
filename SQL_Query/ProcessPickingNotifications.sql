@@ -5,14 +5,14 @@ BEGIN
     SET NOCOUNT ON;
 	SET IMPLICIT_TRANSACTIONS OFF;
 	-- Creamos tabla temporal debuglog
-    CREATE TABLE ProcessDebug (
-        Step NVARCHAR(50),
-        Details NVARCHAR(MAX),
-        Error NVARCHAR(MAX),
-        Time_Stamp DATETIME DEFAULT GETUTCDATE()
-    );
+    --CREATE TABLE ProcessDebug (
+    --    Step NVARCHAR(50),
+    --    Details NVARCHAR(MAX),
+    --    Error NVARCHAR(MAX),
+    --    Time_Stamp DATETIME DEFAULT GETUTCDATE()
+    --);
 	-- Insertamos el inicio del procedimiento en la tabla temporal
-	INSERT INTO ProcessDebug (Step, Details) 
+	INSERT INTO [BrokerDebugLog] (Step, Details) 
 		VALUES ('Start', 'Procedimiento iniciado');
 	
 	-- Valores principales para transaccion
@@ -28,7 +28,7 @@ BEGIN
 			BEGIN TRY
 				BEGIN TRANSACTION;
 					-- Insertamos el inicio de la transacción en la tabla temporal
-					INSERT INTO ProcessDebug (Step, Details) 
+					INSERT INTO [BrokerDebugLog] (Step, Details) 
 						VALUES ('BeginTransaction', 'Transacción Iniciada');
 					-- procesa el último item del queue
 					WAITFOR (
@@ -43,12 +43,12 @@ BEGIN
 					BEGIN
 						ROLLBACK TRANSACTION;
 						-- Insertar en la tabla temporal el final del proceso
-						INSERT INTO ProcessDebug (Step, Details) 
+						INSERT INTO [BrokerDebugLog] (Step, Details) 
 							VALUES ('End', 'No hay mensajes en cola');
 						BREAK;
 					END
 					-- Ingresar el mensaje recibido en la tabla temporal
-					INSERT INTO ProcessDebug (Step, Details)
+					INSERT INTO [BrokerDebugLog] (Step, Details)
 						VALUES ('MessageReceived', 
 							'Mensaje recibido. Tipo: ' + @message_type_name + 
 							' | Longitud: ' + CAST(DATALENGTH(@message_body) AS NVARCHAR)
@@ -61,12 +61,12 @@ BEGIN
 					BEGIN TRY
 						SET @xml_body = CAST(@message_body AS XML);
 						-- Insertar en tabla temporal si la conversión fue exitosa
-						INSERT INTO ProcessDebug (Step, Details)
+						INSERT INTO [BrokerDebugLog] (Step, Details)
 							VALUES ('XMLConversion', 'Conversión a XML exitosa');
 					END TRY
 					BEGIN CATCH
 						-- Insertar en la tabla temporal si hubo un error durante la conversión
-						INSERT INTO ProcessDebug (Step, Error)
+						INSERT INTO [BrokerDebugLog] (Step, Error)
 							VALUES ('XMLConversion', 'Error en conversión XML: ' + ERROR_MESSAGE());
 						-- Finalizar conversación con error
 						END CONVERSATION @conversation_handle 
@@ -80,12 +80,12 @@ BEGIN
 					BEGIN TRY
 						SET @picking_id = CAST(CAST(@xml_body.query('/PickingNotifications/PickingID/text()') as NVARCHAR(MAX)) as INT);
 						-- Insertar en la tabla temporal si se pudo extraer el picking_id
-						INSERT INTO ProcessDebug (Step, Details)
+						INSERT INTO [BrokerDebugLog] (Step, Details)
 							VALUES ('XQuerySuccess', 'PickingID extraído: ' + CAST(ISNULL(@picking_id, '') AS NVARCHAR));
 					END TRY
 					BEGIN CATCH
 						-- Insertar en la tabla temporal si no se pudo extraer el picking_id
-						INSERT INTO ProcessDebug (Step, Error)
+						INSERT INTO [BrokerDebugLog] (Step, Error)
 							VALUES ('XQueryError', 'Error en XQuery: ' + ERROR_MESSAGE());
 						-- Terminar la conversacion con error personalizado
 						END CONVERSATION @conversation_handle 
@@ -99,7 +99,7 @@ BEGIN
 					IF @picking_id IS NULL or @picking_id = 0
 					BEGIN
 						-- Si el picking_id no es valido ingresar en la tabla temporal
-						INSERT INTO ProcessDebug (Step, Details, Error)
+						INSERT INTO [BrokerDebugLog] (Step, Details, Error)
 							VALUES ('InvalidID', @picking_id, 'PickingID es NULL o 0');
 						---- Registrar todos los logs en la tabla permanente
 						--INSERT INTO dbo.BrokerDebugLog (Step, Details, Error, LogTime)
@@ -119,12 +119,12 @@ BEGIN
 					BEGIN TRY
 						EXEC [dbo].[CallDjangoNotificationAPI] @picking_id;
 						-- Insertamos en la tabla temporal la llamada a la API si fue exitosa
-						INSERT INTO ProcessDebug (Step, Details)
+						INSERT INTO [BrokerDebugLog] (Step, Details)
 							VALUES ('APICalled', 'API ejecutada para ID: ' + CAST(@picking_id AS NVARCHAR));
 					END TRY
 					BEGIN CATCH
 						-- Insertamos en la tabla temporal si hubo algún error durante la llamada a la API
-						INSERT INTO ProcessDebug (Step, Error)
+						INSERT INTO [BrokerDebugLog] (Step, Error)
 							VALUES ('APIError', 'Error en API: ' + ERROR_MESSAGE());
 					END CATCH
         
@@ -134,29 +134,29 @@ BEGIN
 				COMMIT TRANSACTION;
 
 				-- Insertar en la tabla temporal la finalización de la conversación
-				INSERT INTO ProcessDebug (Step, Details)
+				INSERT INTO [BrokerDebugLog] (Step, Details)
 					VALUES ('EndConversation', 'Conversación finalizada exitosamente');
 			END TRY
 			BEGIN CATCH
 				-- Si aún hay transacciones pendientes revierte los cambios
                 IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
                 -- Inserta en la tabla temporal el tipo de error encontrado
-                INSERT INTO ProcessDebug (Step, Error)
+                INSERT INTO [BrokerDebugLog] (Step, Error)
 					VALUES ('InnerCatch', 'Error interno: ' + ERROR_MESSAGE());
             END CATCH
 		END
 	END TRY
 	BEGIN CATCH
 		-- Inserta en la tabla temporal algun error inesperado
-        INSERT INTO ProcessDebug (Step, Error)
+        INSERT INTO [BrokerDebugLog] (Step, Error)
         VALUES ('OuterCatch', 'Error externo: ' + ERROR_MESSAGE());
     END CATCH
 	---- Registrar todos los logs en la tabla permanente
-	INSERT INTO dbo.BrokerDebugLog (Step, Details, Error, LogTime)
-    SELECT Step, Details, Error, Time_Stamp 
-    FROM ProcessDebug;
-	---- Eliminar la tabla temporal
-	DROP TABLE ProcessDebug;
+	--INSERT INTO dbo.BrokerDebugLog (Step, Details, Error, LogTime)
+ --   SELECT Step, Details, Error, Time_Stamp 
+ --   FROM ProcessDebug;
+	------ Eliminar la tabla temporal
+	--DROP TABLE ProcessDebug;
 END;
 GO
 
@@ -171,6 +171,21 @@ SELECT * FROM [dbo].[ProcessDebug]
 --DROP TABLE [ProcessDebug]
 --BACKUP LOG SURGICORP_ERP TO DISK = 'NUL' WITH NOFORMAT, NOINIT, SKIP, NOREWIND, NOUNLOAD, STATS = 10;
 --ALTER DATABASE [TuBaseDeDatos] SET ENABLE_BROKER;
+SELECT * FROM sys.databases
+GO
+SELECT
+    name AS logical_name,
+    physical_name,
+    size * 8 / 1024 AS size_in_mb,
+    max_size,
+    CASE max_size
+        WHEN 0 THEN 'No Growth'
+        WHEN -1 THEN 'Unrestricted'
+        ELSE CONVERT(VARCHAR, max_size * 8 / 1024) + ' MB'
+    END AS max_size_desc
+FROM sys.database_files
+WHERE type_desc = 'LOG';
+GO
 
 -- Mandar señal directamente desde el procedimiento almacenado
 DECLARE @DialogHandle UNIQUEIDENTIFIER;
