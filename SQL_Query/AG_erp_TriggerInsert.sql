@@ -49,16 +49,36 @@ BEGIN TRY
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
 			i.ANUGUI_TIPREG = 'G';
-		
-		UPDATE [GR_REGULARIZACION]
-			SET ESTADO = 'ANU',
-			USUARIO = 'Anulado por Servidor',
-			OBSERVACION = 'Anulado por Servidor: ' + [GR_REGULARIZACION].OBSERVACION
+
+		-- Actualiza el estado de la Descripcion de la Guia de Remisión
+		UPDATE [dbo].[GR_DESCRIPCION]
+			SET REG_ID = null,
+			USUARIO = 'Reg. Anulada por Servidor'
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
 			i.ANUGUI_TIPREG = 'G';
-		
+		-- Inserta en la tabla GR_UPDATE_AUDIT el registro REGULARIZACION a eliminar
+		INSERT INTO [dbo].[GR_UPDATE_AUDIT] ([ID_CONCAT], [NUMERO_GUIA], [EMPRESA_ID], [NUMERO_ITEM], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA], [USUARIO])
+		SELECT d.id, d.NUMERO_GUIA, d.EMPRESA_ID, -2, ISNULL(d.[ATENCION], '') + ' | ' + ISNULL(d.[REPRESENTANTE], '') + ' | ' + ISNULL(d.[TIPO_VENTA], '') 
+			+ ' | ' + ISNULL(d.[NOMBRE_CLIENTE], '') + ' | ' + CAST(ISNULL(d.[FECHA_GUIA], '') AS varchar(20)) + ' | ' + ISNULL(d.[ESTADO], '') 
+			+ ' | ' + CAST(ISNULL(d.[ID_APP], 0) AS varchar(20)) + ' | ' + ISNULL(d.[OC_CLIENTE], '') + ' | ' + ISNULL(d.[NRO_PROCESO], '') 
+			+ ' | ' + ISNULL(d.[UBICACION_SECTOR], '') + ' | Salida:' + CAST(ISNULL(d.SALIDA, '') AS varchar(20)),
+			'DELETED', GETUTCDATE(), 'Reg. Eliminada por Servidor'
+		FROM [GR_REGULARIZACION] as d
+			INNER JOIN inserted as i 
+			ON NUMERO_GUIA = i.ANUGUI_NROGUI and
+				EMPRESA_ID = i.ANUGUI_CODEMP 
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'G';
+		-- Elimina la REGULARIZACION correspondiente
+		DELETE FROM [GR_REGULARIZACION]
+		FROM inserted as i
+		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
+			EMPRESA_ID = i.ANUGUI_CODEMP and
+			i.ANUGUI_TIPREG = 'G'
+
 		-- Inserta en la tabla HP_UPDATE_AUDIT el registro picking a eliminar
 		INSERT INTO [dbo].[HP_UPDATE_AUDIT] ([ID_HP], [NUMERO_GUIA], [EMPRESA_ID], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA], [USUARIO])
 		SELECT d.id, d.NUMERO_GUIA, d.EMPRESA_ID, CAST(ISNULL(d.GR_ID, '') AS varchar(20)) + ' | ' + ISNULL(d.STATUS_PICKING, '') + ' | ' + ISNULL(d.ALMACEN, '') 
@@ -82,10 +102,10 @@ BEGIN TRY
 	END
 END TRY
 BEGIN CATCH
-	---- Rollback si hay transaccion activa
-	--DECLARE @XState INT = XACT_STATE();
-	--IF @XState = -1 OR @XState = 1 
-	--	ROLLBACK TRANSACTION;
+	-- Rollback si hay transaccion activa
+	DECLARE @XState INT = XACT_STATE();
+	IF @XState = -1 OR @XState = 1 
+		ROLLBACK TRANSACTION;
 	-- Intentar ingresar error en la tabla GR_UPDATE_AUDIT
 	BEGIN TRY
 		DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
