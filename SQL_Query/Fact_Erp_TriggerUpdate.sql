@@ -24,7 +24,7 @@ BEGIN
 				[SALDO] = i.VTRMVH_IMPSAL,
 				[CANCELADO] = i.VTRMVH_ESTCAN,
 				[ESTADO] = i.VTRMVH_ESTDOC,
-				[NC_ANULACION] = i.VTRMVH_NCRFAC,
+				[NC_ANULACION] = IIF(ISNULL(i.VTRMVH_NCRFAC, '-') = '', '-', ISNULL(i.VTRMVH_NCRFAC, '-')),
 				[USUARIO] = 'Modificado por Servidor'
 			FROM inserted as i
 		WHERE [NUMERO_FACTURA] = i.VTRMVH_NRODOC and

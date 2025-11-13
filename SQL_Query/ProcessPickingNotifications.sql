@@ -4,13 +4,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 	SET IMPLICIT_TRANSACTIONS OFF;
-	-- Creamos tabla temporal debuglog
-    --CREATE TABLE ProcessDebug (
-    --    Step NVARCHAR(50),
-    --    Details NVARCHAR(MAX),
-    --    Error NVARCHAR(MAX),
-    --    Time_Stamp DATETIME DEFAULT GETUTCDATE()
-    --);
+
 	-- Insertamos el inicio del procedimiento en la tabla temporal
 	INSERT INTO [BrokerDebugLog] (Step, Details) 
 		VALUES ('Start', 'Procedimiento iniciado');
@@ -101,12 +95,6 @@ BEGIN
 						-- Si el picking_id no es valido ingresar en la tabla temporal
 						INSERT INTO [BrokerDebugLog] (Step, Details, Error)
 							VALUES ('InvalidID', @picking_id, 'PickingID es NULL o 0');
-						---- Registrar todos los logs en la tabla permanente
-						--INSERT INTO dbo.BrokerDebugLog (Step, Details, Error, LogTime)
-						--SELECT Step, Details, Error, Time_Stamp 
-						--FROM ProcessDebug;
-						---- Eliminar la tabla temporal
-						--DROP TABLE ProcessDebug;
 						-- Terminar la conversación con un error personalizado
 						END CONVERSATION @conversation_handle 
 							WITH ERROR = 50002 
@@ -151,12 +139,6 @@ BEGIN
         INSERT INTO [BrokerDebugLog] (Step, Error)
         VALUES ('OuterCatch', 'Error externo: ' + ERROR_MESSAGE());
     END CATCH
-	---- Registrar todos los logs en la tabla permanente
-	--INSERT INTO dbo.BrokerDebugLog (Step, Details, Error, LogTime)
- --   SELECT Step, Details, Error, Time_Stamp 
- --   FROM ProcessDebug;
-	------ Eliminar la tabla temporal
-	--DROP TABLE ProcessDebug;
 END;
 GO
 
