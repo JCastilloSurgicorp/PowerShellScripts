@@ -9,7 +9,8 @@ else
 begin
    Print 'xp_cmdshell is already enabled'
 end
---DefaultEndpointsProtocol=https;AccountName=surgisqlbackup;AccountKey=oiEp+rxaFGtLNVMzT7OeW0v5TVXX00qabQv+TzvpDhXFh8R83jWkO7VndhWGdOYbK5rXj==
+--BACKUP LOG SURGICORP_ERP TO DISK = 'NUL' WITH NOFORMAT, NOINIT, SKIP, NOREWIND, NOUNLOAD, STATS = 10;
+--VENCIMIENTO de credenciales: 11/11/2028 - 5:41:47 p.m.
 ALTER CREDENTIAL [https://surgisqlbackup.blob.core.windows.net/sql-backup]
 	WITH IDENTITY = 'SHARED ACCESS SIGNATURE',
 	SECRET = ''
@@ -26,12 +27,13 @@ SET STATISTICS TIME ON;
 -- DIFERENCIAL BACKUP
 BACKUP DATABASE SURGICORP_ERP
 TO URL = 'https://surgisqlbackup.blob.core.windows.net/sql-backup/SURGICORP_ERP_Diff.bak'
-WITH DIFFERENTIAL, COMPRESSION;
+WITH FORMAT, DIFFERENTIAL, COMPRESSION;
 SET STATISTICS TIME ON;
 -- TRANSACCIONES BACKUP
 BACKUP LOG SURGICORP_ERP
 TO URL = 'https://surgisqlbackup.blob.core.windows.net/sql-backup/SURGICORP_ERP_Log.trn'
-WITH COMPRESSION;
+WITH FORMAT, COMPRESSION;
+--Standard_D2ds_v4, Standard_F2als_v6, or Standard_D2alds_v6
 --EXEC xp_cmdshell 'powershell.exe -File "C:\SomePath\ThePowerShellFile.ps1"'
 /*declare @chkCMDShell as sql_variant
 select @chkCMDShell = value from sys.configurations where name = 'xp_cmdshell'
