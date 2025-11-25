@@ -5,13 +5,14 @@ SELECT * FROM [dbo].[SI_SECTOR]
 SELECT * FROM [dbo].[SI_KITS_prod_id]
 SELECT * FROM [dbo].[SI_KITS]
 SELECT * FROM [dbo].[SI_TIPOPRODUCTO]
+SELECT * FROM [dbo].[USR_PARINT]
 
 -- Consultas a descripcion de stock
 SELECT * FROM [dbo].[SI_DESCRIPCION]
 
 -- Consultas a la tabla de stock_inventario
 SELECT * FROM [dbo].[STOCK_INVENTARIO]
-WHERE USUARIO like '%Modificado por Servidor:%'
+WHERE USUARIO = 'Modificado por [ProcessStockUpdates]'
 
 --Consultas a la tabla stock de ofisis
 SELECT TOP 80 * FROM [dbo].[USR_STRMVK]
