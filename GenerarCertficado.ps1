@@ -100,7 +100,7 @@ function ExportPFXFile()
         # Remove CN from common name
         $CommonName = $CommonName.Substring(3)
     }
-    if($Password -eq $null)
+    if($null -eq $Password)
     {
         $Password = Read-Host -Prompt "Enter Password to protect private key" -AsSecureString
     }
