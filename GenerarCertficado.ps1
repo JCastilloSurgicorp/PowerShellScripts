@@ -43,7 +43,7 @@ function CreateSelfSignedCertificate(){
         $CommonName = $CommonName.Substring(3)
     }
     $certs = Get-ChildItem -Path Cert:\LocalMachine\my | Where-Object{$_.Subject -eq "CN=$CommonName"}
-    if($certs -ne $null -and $certs.Length -gt 0)
+    if($null -ne $certs -and $certs.Length -gt 0)
     {
         if($Force)
         {
