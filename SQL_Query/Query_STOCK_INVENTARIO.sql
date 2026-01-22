@@ -9,6 +9,7 @@ SELECT * FROM [dbo].[USR_PARINT]
 
 -- Consultas a descripcion de stock
 SELECT * FROM [dbo].[SI_DESCRIPCION]
+WHERE GUIA_REMISION is not NULL
 
 -- Consultas a la tabla de stock_inventario
 SELECT * FROM [dbo].[STOCK_INVENTARIO]

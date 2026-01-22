@@ -59,7 +59,7 @@ USE [master];
 GO
 CREATE CREDENTIAL ##xp_cmdshell_proxy_account##
 WITH IDENTITY = 'SURGI\srvcaminitos',
-SECRET = 'Sistemas@2023';
+SECRET = '';
 GO
 --GRANT IMPERSONATE ANY LOGIN TO [NT SERVICE\MSSQLSERVER];
 -- Borrar Proxy

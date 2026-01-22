@@ -20,7 +20,9 @@ BEGIN
 		STRMVK_ARTCOD VARCHAR(60),
 		STRMVK_CANTID DECIMAL(18, 4),
 		STRMVK_NSERIE VARCHAR(120),
-		STRMVK_TIPAMJ VARCHAR(60)
+		STRMVK_TIPAMJ VARCHAR(60),
+		STRMVK_CODEMP VARCHAR(60),
+		STRMVK_NROGUI VARCHAR(60)
 	);
 
     BEGIN TRY
@@ -61,7 +63,7 @@ BEGIN
 					INSERT INTO #SI_BatchInserted (
 						STRMVK_DEPOSI, STRMVK_DESDEP, STRMVK_SECTOR, STRMVK_DESSEC,
 						STRMVK_TIPALM, STRMVK_DESALM, STRMVK_ARTCOD, STRMVK_CANTID,
-						STRMVK_NSERIE, STRMVK_TIPAMJ
+						STRMVK_NSERIE, STRMVK_TIPAMJ, STRMVK_CODEMP, STRMVK_NROGUI
 					)
 					SELECT
 						T.Item.value('(STRMVK_DEPOSI/text())[1]', 'VARCHAR(60)'),
@@ -73,7 +75,9 @@ BEGIN
 						T.Item.value('(STRMVK_ARTCOD/text())[1]', 'VARCHAR(60)'),
 						T.Item.value('(STRMVK_CANTID/text())[1]', 'DECIMAL(18, 4)'),
 						T.Item.value('(STRMVK_NSERIE/text())[1]', 'VARCHAR(120)'),
-						T.Item.value('(STRMVK_TIPAMJ/text())[1]', 'VARCHAR(60)')
+						T.Item.value('(STRMVK_TIPAMJ/text())[1]', 'VARCHAR(60)'),
+						T.Item.value('(STRMVK_CODEMP/text())[1]', 'VARCHAR(60)'),
+						T.Item.value('(STRMVK_NROGUI/text())[1]', 'VARCHAR(60)')
 					FROM @xml_body.nodes('/inserted') AS T(Item);
 					-- Insertar en tabla temporal si la conversión fue exitosa
 					INSERT INTO [SI_BrokerDebugLog] (Step, Details)
@@ -142,7 +146,9 @@ BEGIN
 
 					-- Inserta en la tabla si_descripcion si no existe el registro
 					UPDATE dc
-					SET dc.CANTIDAD = dc.CANTIDAD + i.TotalCantidad
+						SET dc.CANTIDAD = dc.CANTIDAD + i.TotalCantidad,
+							dc.GUIA_REMISION = (SELECT TOP 1 STRMVK_NROGUI FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%'),
+							dc.GR_Empresa = (SELECT TOP 1 STRMVK_CODEMP FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%')
 					FROM SI_DESCRIPCION AS dc
 					INNER JOIN (
 						-- Agrupa las inserciones por todas las claves relevantes
@@ -165,9 +171,8 @@ BEGIN
 						AND dc.TIPOALMACEN_ID = tp.id
 						AND dc.LOTE = i.NSERIE;
 
-
 					-- Insertar nuevos registros en SI_DESCRIPCION
-					INSERT INTO SI_DESCRIPCION (CODIGO_PRODUCTO, CANTIDAD, DESCRIPCION_ID, LOTE, TIPOALMACEN_ID, DEPOSITO_ID, SECTOR_ID, TIPO_ALMACENAJE)
+					INSERT INTO SI_DESCRIPCION (CODIGO_PRODUCTO, CANTIDAD, DESCRIPCION_ID, LOTE, TIPOALMACEN_ID, DEPOSITO_ID, SECTOR_ID, TIPO_ALMACENAJE, GUIA_REMISION, GR_Empresa)
 					SELECT 
 						i.ARTCOD, 
 						i.TotalCantidad, 
@@ -176,7 +181,9 @@ BEGIN
 						tp.id, 
 						d.id, 
 						s.id, 
-						i.STRMVK_TIPAMJ
+						i.STRMVK_TIPAMJ,
+						(SELECT TOP 1 STRMVK_NROGUI FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%'),
+						(SELECT TOP 1 STRMVK_CODEMP FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%')
 					FROM (
 						-- Agrupa las inserciones por todas las claves relevantes
 						SELECT 

@@ -24,7 +24,8 @@ BEGIN
         SELECT @message = (
             SELECT STRMVK_DEPOSI, STRMVK_DESDEP, STRMVK_SECTOR, STRMVK_DESSEC,
                 STRMVK_TIPALM, STRMVK_DESALM, STRMVK_ARTCOD, STRMVK_CANTID,
-                STRMVK_NSERIE, STRMVK_TIPAMJ
+                STRMVK_NSERIE, STRMVK_TIPAMJ, STRMVK_CODEMP, ISNULL(STRMVK_SUCURS, '') 
+				+ '-' + CAST(ISNULL(STRMVK_NROFOR, '') as varchar(20)) as STRMVK_NROGUI
             FROM inserted
             FOR XML PATH('inserted')
         );
