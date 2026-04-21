@@ -22,7 +22,9 @@ BEGIN
 		STRMVK_NSERIE VARCHAR(120),
 		STRMVK_TIPAMJ VARCHAR(60),
 		STRMVK_CODEMP VARCHAR(60),
-		STRMVK_NROGUI VARCHAR(60)
+		STRMVK_NROGUI VARCHAR(60),
+		STRMVK_TIPPRO VARCHAR(60),
+		STRMVK_ORIGEN VARCHAR(60)
 	);
 
     BEGIN TRY
@@ -63,7 +65,8 @@ BEGIN
 					INSERT INTO #SI_BatchInserted (
 						STRMVK_DEPOSI, STRMVK_DESDEP, STRMVK_SECTOR, STRMVK_DESSEC,
 						STRMVK_TIPALM, STRMVK_DESALM, STRMVK_ARTCOD, STRMVK_CANTID,
-						STRMVK_NSERIE, STRMVK_TIPAMJ, STRMVK_CODEMP, STRMVK_NROGUI
+						STRMVK_NSERIE, STRMVK_TIPAMJ, STRMVK_CODEMP, STRMVK_NROGUI, 
+						STRMVK_TIPPRO, STRMVK_ORIGEN
 					)
 					SELECT
 						T.Item.value('(STRMVK_DEPOSI/text())[1]', 'VARCHAR(60)'),
@@ -77,7 +80,9 @@ BEGIN
 						T.Item.value('(STRMVK_NSERIE/text())[1]', 'VARCHAR(120)'),
 						T.Item.value('(STRMVK_TIPAMJ/text())[1]', 'VARCHAR(60)'),
 						T.Item.value('(STRMVK_CODEMP/text())[1]', 'VARCHAR(60)'),
-						T.Item.value('(STRMVK_NROGUI/text())[1]', 'VARCHAR(60)')
+						T.Item.value('(STRMVK_NROGUI/text())[1]', 'VARCHAR(60)'),
+						T.Item.value('(STRMVK_TIPPRO/text())[1]', 'VARCHAR(60)'),
+						T.Item.value('(STRMVK_ORIGEN/text())[1]', 'VARCHAR(60)')
 					FROM @xml_body.nodes('/inserted') AS T(Item);
 					-- Insertar en tabla temporal si la conversión fue exitosa
 					INSERT INTO [SI_BrokerDebugLog] (Step, Details)
@@ -101,114 +106,48 @@ BEGIN
 					SELECT DISTINCT TRIM(i.STRMVK_DEPOSI), i.STRMVK_DESDEP
 					FROM #SI_BatchInserted AS i
 						LEFT JOIN SI_DEPOSITO AS d ON d.CODIGO_DEPOSITO = TRIM(i.STRMVK_DEPOSI)
-					WHERE d.id IS NULL AND TRIM(i.STRMVK_DEPOSI) IS NOT NULL;
+					WHERE d.id IS NULL AND TRIM(i.STRMVK_DEPOSI) IS NOT NULL AND STRMVK_ORIGEN = 'INSERTED';
 
 					-- Inserta en SI_SECTOR si no está en la lista.
 					INSERT INTO SI_SECTOR (NOMBRE_SECTOR, DESCRIPCION)
 					SELECT DISTINCT TRIM(i.STRMVK_SECTOR), i.STRMVK_DESSEC
 					FROM #SI_BatchInserted AS i
 						LEFT JOIN SI_SECTOR AS s ON s.NOMBRE_SECTOR = TRIM(i.STRMVK_SECTOR)
-					WHERE s.id IS NULL AND TRIM(i.STRMVK_SECTOR) IS NOT NULL;
+					WHERE s.id IS NULL AND TRIM(i.STRMVK_SECTOR) IS NOT NULL AND STRMVK_ORIGEN = 'INSERTED';
 
 					-- Inserta en SI_TIPOALMACEN si no está en la lista.
 					INSERT INTO SI_TIPOALMACEN (NOMBRE_ALMACEN, DESCRIPCION)
 					SELECT DISTINCT IIF(i.STRMVK_TIPALM = '', '-', i.STRMVK_TIPALM), i.STRMVK_DESALM
 					FROM #SI_BatchInserted AS i
 						LEFT JOIN SI_TIPOALMACEN AS tp ON tp.NOMBRE_ALMACEN = IIF(i.STRMVK_TIPALM = '', '-', i.STRMVK_TIPALM)
-					WHERE tp.id IS NULL;
+					WHERE tp.id IS NULL AND STRMVK_ORIGEN = 'INSERTED';
 
 					-- Actualiza la tabla de stock_inventario si existe el registro
-					UPDATE st
-						SET STOCK = STOCK + i.TotalCantidad,
-							USUARIO = 'Modificado por [ProcessStockUpdates]'
-					FROM STOCK_INVENTARIO AS st
-						INNER JOIN (
+					IF EXISTS (SELECT 1 FROM #SI_BatchInserted)
+					BEGIN
+						MERGE STOCK_INVENTARIO AS target
+						USING (
 							SELECT 
-								TRIM(STRMVK_ARTCOD) AS ARTCOD, 
-								SUM(STRMVK_CANTID) AS TotalCantidad
-							FROM #SI_BatchInserted
-							GROUP BY TRIM(STRMVK_ARTCOD)
-						) AS i ON st.PRODUCTO_ID = (SELECT p.id FROM SI_PRODUCTO AS p WHERE p.CODIGO_PRODUCTO = i.ARTCOD);
-
-					-- Inserta en la tabla de stock_inventario si no existe el registro
-					INSERT INTO STOCK_INVENTARIO (PRODUCTO_ID, STOCK)
-					SELECT p.id, i.TotalCantidad
-					FROM (
-						SELECT 
-							TRIM(STRMVK_ARTCOD) AS ARTCOD, 
-							SUM(STRMVK_CANTID) AS TotalCantidad
-						FROM #SI_BatchInserted
-						GROUP BY TRIM(STRMVK_ARTCOD)
-					) AS i
-					INNER JOIN SI_PRODUCTO AS p ON p.CODIGO_PRODUCTO = i.ARTCOD
-					LEFT JOIN STOCK_INVENTARIO AS st ON st.PRODUCTO_ID = p.id
-					WHERE st.id IS NULL;
-
-					-- Inserta en la tabla si_descripcion si no existe el registro
-					UPDATE dc
-						SET dc.CANTIDAD = dc.CANTIDAD + i.TotalCantidad,
-							dc.GUIA_REMISION = (SELECT TOP 1 STRMVK_NROGUI FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%'),
-							dc.GR_Empresa = (SELECT TOP 1 STRMVK_CODEMP FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%')
-					FROM SI_DESCRIPCION AS dc
-					INNER JOIN (
-						-- Agrupa las inserciones por todas las claves relevantes
-						SELECT 
-							TRIM(STRMVK_ARTCOD) AS ARTCOD, 
-							STRMVK_NSERIE AS NSERIE,
-							STRMVK_DEPOSI AS DEPOSI,
-							TRIM(STRMVK_SECTOR) AS SECTOR,
-							IIF(STRMVK_TIPALM = '', '-', STRMVK_TIPALM) AS TIP_ALM,
-							SUM(STRMVK_CANTID) AS TotalCantidad
-						FROM #SI_BatchInserted
-						GROUP BY TRIM(STRMVK_ARTCOD), STRMVK_NSERIE, STRMVK_DEPOSI, TRIM(STRMVK_SECTOR), IIF(STRMVK_TIPALM = '', '-', STRMVK_TIPALM)
-					) AS i ON dc.CODIGO_PRODUCTO = i.ARTCOD
-					-- Uniones auxiliares para obtener IDs de catálogo
-					LEFT JOIN SI_DEPOSITO AS d ON d.CODIGO_DEPOSITO = i.DEPOSI
-					LEFT JOIN SI_SECTOR AS s ON s.NOMBRE_SECTOR = i.SECTOR
-					LEFT JOIN SI_TIPOALMACEN AS tp ON tp.NOMBRE_ALMACEN = i.TIP_ALM
-					WHERE dc.DEPOSITO_ID = d.id 
-						AND dc.SECTOR_ID = s.id 
-						AND dc.TIPOALMACEN_ID = tp.id
-						AND dc.LOTE = i.NSERIE;
+								p.id as p_id, i.STRMVK_ARTCOD as cod, p.TIPO as tipo,
+								(e.EMPRESA + ' | ' + i.STRMVK_TIPAMJ + ' | ' + i.STRMVK_TIPALM) as alm,
+								SUM(CASE WHEN i.STRMVK_ORIGEN = 'DELETED' THEN i.STRMVK_CANTID * -1 ELSE i.STRMVK_CANTID END) as cant
+							FROM #SI_BatchInserted as i
+							LEFT JOIN [SI_PRODUCTO] p ON p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD AND p.TIPO = i.STRMVK_TIPPRO
+							LEFT JOIN [dbo].[SI_Empresa] e ON e.id = i.STRMVK_CODEMP
+							GROUP BY p.id, i.STRMVK_ARTCOD, p.TIPO, (e.EMPRESA + ' | ' + i.STRMVK_TIPAMJ + ' | ' + i.STRMVK_TIPALM)
+						) AS source
+						ON (target.PRODUCTO_ID = source.p_id and target.ALMACENAJE = source.alm)
+						WHEN MATCHED THEN
+							UPDATE SET 
+								target.STOCK = target.STOCK + source.cant,
+								target.USUARIO = 'Modificado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
+						WHEN NOT MATCHED THEN
+							INSERT (PRODUCTO_ID, ALMACENAJE, STOCK, USUARIO)
+							VALUES (source.p_id, source.alm, source.cant, 'Creado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20)));
+					END
 
 					-- Insertar nuevos registros en SI_DESCRIPCION
-					INSERT INTO SI_DESCRIPCION (CODIGO_PRODUCTO, CANTIDAD, DESCRIPCION_ID, LOTE, TIPOALMACEN_ID, DEPOSITO_ID, SECTOR_ID, TIPO_ALMACENAJE, GUIA_REMISION, GR_Empresa)
-					SELECT 
-						i.ARTCOD, 
-						i.TotalCantidad, 
-						st.id, 
-						i.NSERIE, 
-						tp.id, 
-						d.id, 
-						s.id, 
-						i.STRMVK_TIPAMJ,
-						(SELECT TOP 1 STRMVK_NROGUI FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%'),
-						(SELECT TOP 1 STRMVK_CODEMP FROM #SI_BatchInserted as i WHERE i.STRMVK_NROGUI like 'T%')
-					FROM (
-						-- Agrupa las inserciones por todas las claves relevantes
-						SELECT 
-							TRIM(STRMVK_ARTCOD) AS ARTCOD, 
-							STRMVK_NSERIE AS NSERIE,
-							STRMVK_DEPOSI AS DEPOSI,
-							TRIM(STRMVK_SECTOR) AS SECTOR,
-							IIF(STRMVK_TIPALM = '', '-', STRMVK_TIPALM) AS TIP_ALM,
-							SUM(STRMVK_CANTID) AS TotalCantidad,
-							MAX(STRMVK_TIPAMJ) AS STRMVK_TIPAMJ -- Usamos MAX si el valor es consistente por grupo
-						FROM #SI_BatchInserted
-						GROUP BY TRIM(STRMVK_ARTCOD), STRMVK_NSERIE, STRMVK_DEPOSI, TRIM(STRMVK_SECTOR), IIF(STRMVK_TIPALM = '', '-', STRMVK_TIPALM)
-					) AS i
-					-- Uniones auxiliares para obtener IDs y verificar inexistencia
-					LEFT JOIN SI_PRODUCTO AS p ON p.CODIGO_PRODUCTO = i.ARTCOD
-					LEFT JOIN SI_DEPOSITO AS d ON d.CODIGO_DEPOSITO = i.DEPOSI
-					LEFT JOIN SI_SECTOR AS s ON s.NOMBRE_SECTOR = i.SECTOR
-					LEFT JOIN SI_TIPOALMACEN AS tp ON tp.NOMBRE_ALMACEN = i.TIP_ALM
-					LEFT JOIN STOCK_INVENTARIO AS st ON st.PRODUCTO_ID = p.id
-					LEFT JOIN SI_DESCRIPCION AS dc ON dc.CODIGO_PRODUCTO = i.ARTCOD
-						AND dc.LOTE = i.NSERIE
-						AND dc.TIPOALMACEN_ID = tp.id
-						AND dc.DEPOSITO_ID = d.id
-						AND dc.SECTOR_ID = s.id
-					WHERE dc.id IS NULL;
+					--
 
 					-- Finalizar la conversación después de procesar el mensaje
 					END CONVERSATION @dialog_handle;
@@ -220,6 +159,9 @@ BEGIN
 					-- Insertar en la tabla temporal si no se pudo procesar los datos
 					INSERT INTO [SI_BrokerDebugLog] (Step, Error)
 						VALUES ('XQueryError', 'Error en XQuery en [ProcessStockUpdates]: ' + ERROR_MESSAGE());
+					-- Insertar en la tabla SI_UPDATE_AUDIT si no se pudo procesar los datos
+					INSERT INTO [dbo].[SI_UPDATE_AUDIT] ([ID_CONCAT], [TABLA], [CAMPO], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA])
+						VALUES ('ProcessStockUpdates', 'XQuery', 'ERROR', 'XMLConversion', 'Error en XQuery en [ProcessStockUpdates]: ' + ERROR_MESSAGE(), GETUTCDATE());
 					-- Terminar la conversacion con error personalizado
 					END CONVERSATION @dialog_handle 
 						WITH ERROR = 50001 
@@ -237,7 +179,7 @@ BEGIN
 END;
 
 SELECT * FROM [dbo].[SI_BrokerDebugLog]
---WHERE Step = 'Inicio'
+--WHERE Error is not NULL
 ORDER BY LogID DESC;
 
 EXEC dbo.[ProcessStockUpdates]; 
@@ -245,10 +187,10 @@ EXEC dbo.[ProcessStockUpdates];
 --DELETE FROM [SI_BrokerDebugLog]
 --DBCC CHECKIDENT('SI_BrokerDebugLog', RESEED, 0)
 
-SELECT COUNT(*) FROM [dbo].[StockUpdateQueue]
+--SELECT COUNT(*) FROM [dbo].[StockUpdateQueue]
 --SELECT is_broker_enabled FROM sys.databases WHERE name = DB_NAME();
-SELECT TOP 100 * FROM [dbo].[StockUpdateQueue] ORDER BY queuing_order;
-SELECT * FROM StockUpdateQueue WITH (NOLOCK);
+--SELECT TOP 100 * FROM [dbo].[StockUpdateQueue] ORDER BY queuing_order;
+--SELECT * FROM StockUpdateQueue WITH (NOLOCK);
 SELECT name, service_queue_id, *
 FROM sys.services
 WHERE name = 'StockUpdateService'; 

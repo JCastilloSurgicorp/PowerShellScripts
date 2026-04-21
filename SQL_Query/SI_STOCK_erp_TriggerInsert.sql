@@ -25,7 +25,8 @@ BEGIN
             SELECT STRMVK_DEPOSI, STRMVK_DESDEP, STRMVK_SECTOR, STRMVK_DESSEC,
                 STRMVK_TIPALM, STRMVK_DESALM, STRMVK_ARTCOD, STRMVK_CANTID,
                 STRMVK_NSERIE, STRMVK_TIPAMJ, STRMVK_CODEMP, ISNULL(STRMVK_SUCURS, '') 
-				+ '-' + CAST(ISNULL(STRMVK_NROFOR, '') as varchar(20)) as STRMVK_NROGUI
+				+ '-' + CAST(STRMVK_NROFOR as varchar(20)) as STRMVK_NROGUI, 
+				STRMVK_TIPPRO, 'INSERTED' as STRMVK_ORIGEN
             FROM inserted
             FOR XML PATH('inserted')
         );
@@ -48,7 +49,7 @@ BEGIN
 		DECLARE @XState INT = XACT_STATE();
 		IF @XState = -1 OR @XState = 1 
 			ROLLBACK TRANSACTION;
-		---- Intentar ingresar error en la tabla GR_UPDATE_AUDIT
+		---- Intentar ingresar error en la tabla SI_UPDATE_AUDIT
 		BEGIN TRY
 			DECLARE @MensajeError NVARCHAR(4000) = ERROR_MESSAGE();
 			DECLARE @SeveridadError INT = ERROR_SEVERITY();
@@ -58,8 +59,8 @@ BEGIN
 				' | Severidad: ', @SeveridadError,
 				' | Mensaje: ', @MensajeError
 			);
-			INSERT INTO [dbo].[GR_UPDATE_AUDIT] ([ID_CONCAT], [NUMERO_GUIA], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA])
-				VALUES ('SI_STOCK_erp_TriggerInsert', CONCAT('SI_STOCK_erp_TriggerInsert -> Error: ', @EstadoError,' | Severidad: ', @SeveridadError), 'ERROR', @MensajeError, GETUTCDATE());
+			INSERT INTO [dbo].[SI_UPDATE_AUDIT] ([ID_CONCAT], [TABLA], [CAMPO], [ESTADO_OLD], [ESTADO_NEW], [FECHA_HORA])
+				VALUES ('SI_STOCK_erp_TriggerInsert', 'STOCK_INVENTARIO', 'ERROR', CONCAT('SI_STOCK_erp_TriggerInsert -> Error: ', @EstadoError,' | Severidad: ', @SeveridadError), @MensajeError, GETUTCDATE());
 			RAISERROR(@LogMessage, 0, 1) WITH LOG;
 		END TRY
 		BEGIN CATCH
