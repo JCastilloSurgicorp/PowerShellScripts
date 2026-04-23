@@ -128,13 +128,15 @@ BEGIN
 						MERGE STOCK_INVENTARIO AS target
 						USING (
 							SELECT 
-								p.id as p_id, i.STRMVK_ARTCOD as cod, p.TIPO as tipo,
-								(e.EMPRESA + ' | ' + i.STRMVK_TIPAMJ + ' | ' + i.STRMVK_TIPALM) as alm,
+								p.id as p_id, i.STRMVK_ARTCOD as cod, p.TIPO as tipo, 
+								IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) as tipo_alm,
+								(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM) as alm,
 								SUM(CASE WHEN i.STRMVK_ORIGEN = 'DELETED' THEN i.STRMVK_CANTID * -1 ELSE i.STRMVK_CANTID END) as cant
 							FROM #SI_BatchInserted as i
 							LEFT JOIN [SI_PRODUCTO] p ON p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD AND p.TIPO = i.STRMVK_TIPPRO
 							LEFT JOIN [dbo].[SI_Empresa] e ON e.id = i.STRMVK_CODEMP
-							GROUP BY p.id, i.STRMVK_ARTCOD, p.TIPO, (e.EMPRESA + ' | ' + i.STRMVK_TIPAMJ + ' | ' + i.STRMVK_TIPALM)
+							GROUP BY p.id, i.STRMVK_ARTCOD, p.TIPO, IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ), 
+								(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM)
 						) AS source
 						ON (target.PRODUCTO_ID = source.p_id and target.ALMACENAJE = source.alm)
 						WHEN MATCHED THEN
@@ -142,11 +144,82 @@ BEGIN
 								target.STOCK = target.STOCK + source.cant,
 								target.USUARIO = 'Modificado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 						WHEN NOT MATCHED THEN
-							INSERT (PRODUCTO_ID, ALMACENAJE, STOCK, USUARIO)
-							VALUES (source.p_id, source.alm, source.cant, 'Creado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20)));
+							INSERT (PRODUCTO_ID, ALMACENAJE, TIPO_ALMACENAJE, STOCK, USUARIO)
+							VALUES (source.p_id, source.alm, source.tipo_alm, source.cant, 'Creado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20)));
 					END
 
-					-- Insertar nuevos registros en SI_DESCRIPCION
+					-- Actualiza la tabla de stock_aprobados si existe el registro
+					IF EXISTS (SELECT 1 FROM #SI_BatchInserted)
+					BEGIN
+						MERGE STOCK_APROBADO AS target
+						USING (
+							SELECT TOP 60000 p.id as p_id, i.STRMVK_ARTCOD as cod,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'STOCK DISPONIBLE' 
+									or STRMVK_TIPAMJ = 'CONSUMO INTERNO'
+									or STRMVK_TIPAMJ = 'DEVOLUCION EN PROCESO'
+									or STRMVK_TIPAMJ = 'STOCK EN TRANSITO'
+									THEN i.STRMVK_CANTID ELSE 0 END) as disponible,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
+									or STRMVK_TIPAMJ = 'IMPORTACION EN PROSO DE APROBACION'
+									or STRMVK_TIPAMJ = 'INKJET'
+									or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
+									THEN i.STRMVK_CANTID ELSE 0 END) as importacion,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO' THEN i.STRMVK_CANTID ELSE 0 END) as acondicionado,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO' THEN i.STRMVK_CANTID ELSE 0 END) as reesterilizado,
+								SUM(CASE WHEN STRMVK_SECTOR = '7-B.1' 
+									or STRMVK_SECTOR = '7-B.2'
+									or STRMVK_SECTOR = '7-B.3'
+									or STRMVK_SECTOR = 'PRI-R75.A.1'
+									THEN i.STRMVK_CANTID ELSE 0 END) as observados,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO' THEN i.STRMVK_CANTID ELSE 0 END) as venta_sujeta,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'CONSIGNACION' THEN i.STRMVK_CANTID ELSE 0 END) as consignacion,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'STOCK DISPONIBLE' 
+									or STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
+									or STRMVK_TIPAMJ = 'IMPORTACION EN PROSO DE APROBACION'
+									or STRMVK_TIPAMJ = 'INKJET'
+									or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
+									or STRMVK_TIPAMJ = 'CONSUMO INTERNO'
+									or STRMVK_TIPAMJ = 'DEVOLUCION EN PROCESO'
+									or STRMVK_TIPAMJ = 'STOCK EN TRANSITO'
+									or STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO'
+									or STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO'
+									or STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO'
+									or STRMVK_TIPAMJ = 'CONSIGNACION' 
+									THEN i.STRMVK_CANTID ELSE 0 END) as stock
+							FROM (SELECT i.STRMVK_ARTCOD, i.STRMVK_TIPPRO, i.STRMVK_CODEMP, i.STRMVK_TIPAMJ, i.STRMVK_SECTOR, 
+										CASE WHEN i.STRMVK_ORIGEN = 'DELETED' THEN i.STRMVK_CANTID * -1 ELSE i.STRMVK_CANTID END as STRMVK_CANTID
+									FROM #SI_BatchInserted as i
+								) as i
+								LEFT JOIN [dbo].[SI_Empresa] As e ON e.id = i.STRMVK_CODEMP
+								OUTER APPLY (
+									SELECT TOP 1 *
+									FROM [SI_PRODUCTO] as p
+									WHERE p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD
+										and TIPO = i.STRMVK_TIPPRO
+									ORDER BY p.ID -- Aquí decides cuál de las dos cuentas priorizar	IMPORTACION EN PROSO DE APROBACION
+								) as p
+							GROUP BY STRMVK_ARTCOD, p.id
+							ORDER BY STRMVK_ARTCOD asc
+						) AS source
+						ON (target.PRODUCTO_ID = source.p_id)
+						WHEN MATCHED THEN
+							UPDATE SET 
+								target.DISPONIBLE = target.DISPONIBLE + source.disponible,
+								target.IMPORTACION = target.IMPORTACION + source.importacion,
+								target.ACONDICIONADO = target.ACONDICIONADO + source.acondicionado,
+								target.REESTERILIZADO = target.REESTERILIZADO + source.reesterilizado,
+								target.OBSERVADOS = target.OBSERVADOS + source.observados,
+								target.VENTA_SUJETA = target.VENTA_SUJETA + source.venta_sujeta,
+								target.CONSIGNACION = target.CONSIGNACION + source.consignacion,
+								target.STOCK = target.STOCK + source.stock,
+								target.USUARIO = 'Modificado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
+						WHEN NOT MATCHED THEN
+							INSERT (PRODUCTO_ID, IMPORTACION, DISPONIBLE, ACONDICIONADO, REESTERILIZADO, OBSERVADOS, VENTA_SUJETA, CONSIGNACION, STOCK, USUARIO)
+							VALUES (source.p_id, source.importacion, source.disponible, source.acondicionado, source.reesterilizado, source.observados, source.venta_sujeta, source.consignacion, source.stock, 'Creado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20)));
+					END
+
+
+					-- Insertar nuevos registros en SI_DESCRIPCION    disponible
 					--
 
 					-- Finalizar la conversación después de procesar el mensaje

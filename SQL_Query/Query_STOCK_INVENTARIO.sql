@@ -10,25 +10,27 @@ SELECT * FROM [dbo].[USR_VTTENT]
 SELECT * FROM [dbo].[USR_VTMCLH]
 SELECT * FROM [dbo].[SI_UPDATE_AUDIT]
 
-
+-- consulta a Stock Aprobados
+SELECT id, PRODUCTO_ID, DISPONIBLE, IMPORTACION, ACONDICIONADO, REESTERILIZADO, OBSERVADOS, CONSIGNACION, VENTA_SUJETA, STOCK, USUARIO 
+FROM [dbo].[STOCK_APROBADO]
+WHERE USUARIO is not null
 -- Consultas a descripcion de stock
 SELECT * FROM [dbo].[SI_DESCRIPCION]
 WHERE GUIA_REMISION is not NULL
 
--- Consultas a la tabla de stock_inventario
-SELECT * FROM [dbo].[STOCK_INVENTARIO]
+-- Consultas a la tabla de stock_inventario  --35 654
+SELECT * FROM [dbo].[STOCK_INVENTARIO] as i
+	LEFT JOIN SI_PRODUCTO as p ON p.id = i.PRODUCTO_ID
 --WHERE OTROS is not NULL
-WHERE USUARIO like '%Servidor%'
+--WHERE USUARIO like '%Servidor%'
+ORDER BY USUARIO desc
 
 --Consultas a la tabla stock de ofisis
-SELECT TOP 22000 STRMVK_SECTOR, STRMVK_DEPOSI, STRMVK_TIPAMJ, * FROM [dbo].[USR_STRMVK]
---WHERE STRMVK_DEPOSI like '%-acon'
+SELECT TOP 22000 STRMVK_SECTOR, STRMVK_DEPOSI, STRMVK_TIPAMJ, STRMVK_ARTCOD, STRMVK_CANTID, * FROM [dbo].[USR_STRMVK]
+WHERE STRMVK_DEPOSI like '%-CUA'
 --WHERE STRMVK_TIPAMJ = ''
 ORDER BY STRMVK_FECALT desc
---INSERT INTO [SI_SECTOR]
-SELECT DISTINCT STRMVK_TIPAMJ FROM [USR_STRMVK] as i
-	LEFT JOIN [SI_SECTOR] as d ON d.NOMBRE_SECTOR = i.STRMVK_SECTOR
-WHERE d.id is NULL
+
 
 -- Consultas a tabla Productos ofisis
 SELECT * FROM [dbo].[USR_STMPDH]
@@ -65,8 +67,8 @@ ORDER BY NOMBRE_PROVEEDOR
 SELECT * FROM [dbo].[USR_FAMALT]
 SELECT * FROM [dbo].[SI_FAMILIA]
 
---DELETE FROM [STOCK_INVENTARIO] WHERE id = 3091 GUIA_DIGEMID --5104  5750 1922 7026       5794 4047
---DBCC CHECKIDENT('STOCK_INVENTARIO', RESEED, 0)
+--DELETE FROM [STOCK_APROBADO] WHERE id = 3091 GUIA_DIGEMID --5104  5750 1922 7026       5794 4047
+--DBCC CHECKIDENT('STOCK_APROBADO', RESEED, 0)
 --INSERT INTO SI_PRODUCTO (CODIGO_PRODUCTO, DESCRIPCION)
 --DELETE FROM [SI_DESCRIPCION]
 --DBCC CHECKIDENT('SI_DESCRIPCION', RESEED, 0)
@@ -95,79 +97,59 @@ SELECT t.cod, t.stock, t.st_id, t.STRMVK_NSERIE, t.tp_id, t.d_id, t.s_id, t.STRM
 
 
 -- Insert a Stock de Inventario
---INSERT INTO STOCK_INVENTARIO (PRODUCTO_ID, ALMACENAJE, STOCK)
-SELECT st.p_id, st.tipo_almcenaje, st.stock FROM (
-	SELECT TOP 60000 p.id as p_id, STRMVK_ARTCOD as cod, p.TIPO as tipo,  
-		(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM) As tipo_almcenaje, SUM(STRMVK_CANTID) as stock 
+--INSERT INTO STOCK_INVENTARIO (PRODUCTO_ID, ALMACENAJE, STOCK, TIPO_ALMACENAJE)
+SELECT st.p_id, st.almcenaje, st.stock, st.tipo_almacenaje FROM (
+	SELECT TOP 60000 p.id as p_id, STRMVK_ARTCOD as cod, p.TIPO as tipo, IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) as tipo_almacenaje,
+		(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM) As almcenaje, SUM(STRMVK_CANTID) as stock 
 	FROM [USR_STRMVK] as i
 		LEFT JOIN [SI_PRODUCTO] as p ON p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD and TIPO = i.STRMVK_TIPPRO
 		LEFT JOIN [dbo].[SI_Empresa] As e ON e.id = i.STRMVK_CODEMP
-	GROUP BY p.id, STRMVK_ARTCOD, p.TIPO, (e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM) 
+	GROUP BY p.id, STRMVK_ARTCOD, p.TIPO, IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ), (e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM) 
 	ORDER BY STRMVK_ARTCOD, p_id desc
 ) as st
 
-SELECT * FROM [USR_STRMVK]
-WHERE STRMVK_ARTCOD =  ' 51202205' and STRMVK_TIPPRO = 'MER   '
-
-
-
-
-
-
-
-
-
--- Para UPDATE
-SELECT 'DELETE' as Accion, * FROM deleted FOR XML PATH('movimiento'), ROOT('cambios')
-SELECT 'INSERT' as Accion, * FROM inserted FOR XML PATH('movimiento'), ROOT('cambios')
--- Supongamos que cargas el XML en #MovimientosProcesar
--- Si el registro viene de una eliminación o la parte "old" de un update, multiplicas cant * -1
-SELECT 
-    p.id as p_id, 
-    (e.EMPRESA + ' | ' + i.STRMVK_TIPAMJ + ' | ' + i.STRMVK_TIPALM) as alm,
-    SUM(CASE WHEN i.Origen = 'DELETED' THEN i.STRMVK_CANTID * -1 ELSE i.STRMVK_CANTID END) as cant_neta
-FROM #MovimientosProcesar i
-... (joins)
-GROUP BY p.id, e.EMPRESA, i.STRMVK_TIPAMJ, i.STRMVK_TIPALM
-MERGE STOCK_INVENTARIO AS target
-USING (...) AS source ON (...)
-WHEN MATCHED THEN
-    UPDATE SET 
-        target.STOCK = target.STOCK + source.cant_neta, -- Suma el neto (si cant_neta es negativa, resta solo)
-        target.USUARIO = 'Sync - ' + CAST(GETDATE() As VARCHAR(20))
-WHEN NOT MATCHED THEN
-    INSERT (PRODUCTO_ID, OTROS, STOCK, USUARIO)
-    VALUES (source.p_id, source.alm, source.cant_neta, 'Sync Initial');
-
-CREATE TRIGGER TR_ActualizarStockResumen
-ON [USR_STRMVK]
-AFTER INSERT, DELETE
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    -- 1. Manejar los nuevos registros (Suma al stock)
-    IF EXISTS (SELECT 1 FROM inserted)
-    BEGIN
-        MERGE STOCK_INVENTARIO AS target
-        USING (
-            SELECT 
-                p.id as p_id, i.STRMVK_ARTCOD as cod, p.TIPO as tipo,
-                (e.EMPRESA + ' | ' + i.STRMVK_TIPAMJ + ' | ' + i.STRMVK_TIPALM) as alm,
-                SUM(i.STRMVK_CANTID) as cant
-            FROM inserted i
-            LEFT JOIN [SI_PRODUCTO] p ON p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD AND p.TIPO = i.STRMVK_TIPPRO
-            LEFT JOIN [dbo].[SI_Empresa] e ON e.id = i.STRMVK_CODEMP
-            GROUP BY p.id, i.STRMVK_ARTCOD, p.TIPO, e.EMPRESA, i.STRMVK_TIPAMJ, i.STRMVK_TIPALM
-        ) AS source
-        ON (target.PRODUCTO_ID = source.p_id and target.OTROS = source.alm)
-        WHEN MATCHED THEN
-            UPDATE SET target.stock = target.stock + source.cant, target.PRODUCTO_ID = source.p_id
-        WHEN NOT MATCHED THEN
-            INSERT (PRODUCTO_ID, OTROS, stock)
-            VALUES (source.p_id, source.alm, source.cant);
-    END
-
-    -- 2. Limpieza de ceros: Opcionalmente puedes borrar registros que lleguen a 0
-    -- o manejarlos con la lógica de 'STOCK CERO' en una vista sobre esta tabla.
-END
+	-- INSERT INTO STOCK_APROBADO(PRODUCTO_ID, DISPONIBLE, IMPORTACION, ACONDICIONADO, REESTERILIZADO, OBSERVADOS, VENTA_SUJETA, CONSIGNACION, STOCK)
+	SELECT TOP 60000 p.id, 
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'STOCK DISPONIBLE'
+			or STRMVK_TIPAMJ = 'CONSUMO INTERNO'
+			or STRMVK_TIPAMJ = 'DEVOLUCION EN PROCESO'
+			or STRMVK_TIPAMJ = 'STOCK EN TRANSITO'
+			THEN i.STRMVK_CANTID ELSE 0 END) as disponible,
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
+			or STRMVK_TIPAMJ = 'IMPORTACION EN PROSO DE APROBACION'
+			or STRMVK_TIPAMJ = 'INKJET'
+			or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
+			THEN i.STRMVK_CANTID ELSE 0 END) as importacion,
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO' THEN i.STRMVK_CANTID ELSE 0 END) as acondicionado,
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO' THEN i.STRMVK_CANTID ELSE 0 END) as reesterilizado,
+		SUM(CASE WHEN STRMVK_SECTOR = '7-B.1' 
+			or STRMVK_SECTOR = '7-B.2'
+			or STRMVK_SECTOR = '7-B.3'
+			or STRMVK_SECTOR = 'PRI-R75.A.1'
+			THEN i.STRMVK_CANTID ELSE 0 END) as observados,
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO' THEN i.STRMVK_CANTID ELSE 0 END) as venta_sujeta,
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'CONSIGNACION' THEN i.STRMVK_CANTID ELSE 0 END) as consignacion,
+		SUM(CASE WHEN STRMVK_TIPAMJ = 'STOCK DISPONIBLE' 
+			or STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
+			or STRMVK_TIPAMJ = 'IMPORTACION EN PROSO DE APROBACION'
+			or STRMVK_TIPAMJ = 'INKJET'
+			or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
+			or STRMVK_TIPAMJ = 'CONSUMO INTERNO'
+			or STRMVK_TIPAMJ = 'DEVOLUCION EN PROCESO'
+			or STRMVK_TIPAMJ = 'STOCK EN TRANSITO'
+			or STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO'
+			or STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO'
+			or STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO'
+			or STRMVK_TIPAMJ = 'CONSIGNACION' 
+			THEN i.STRMVK_CANTID ELSE 0 END) as stock
+	FROM [USR_STRMVK] as i
+		LEFT JOIN [dbo].[SI_Empresa] As e ON e.id = i.STRMVK_CODEMP
+		OUTER APPLY (
+					SELECT TOP 1 *
+					FROM [SI_PRODUCTO] as p
+					WHERE p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD
+						and TIPO = i.STRMVK_TIPPRO
+					ORDER BY p.ID -- Aquí decides cuál de las dos cuentas priorizar	IMPORTACION EN PROSO DE APROBACION
+				) as p
+	GROUP BY STRMVK_ARTCOD, p.id
+	ORDER BY STRMVK_ARTCOD asc
