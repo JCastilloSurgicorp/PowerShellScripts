@@ -16,7 +16,7 @@ BEGIN TRY
 	BEGIN
 		UPDATE HOJA_PICKING
 			SET SALIDA = 0,
-			USUARIO = 'Anulado por Servidor'
+			USUARIO = 'Anulado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
@@ -24,7 +24,7 @@ BEGIN TRY
 
 		UPDATE GUIAS_REMISION
 			SET SALIDA = 0,
-			USUARIO = 'Anulado por Servidor'
+			USUARIO = 'Anulado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
@@ -32,7 +32,7 @@ BEGIN TRY
 		
 		UPDATE [GR_REGULARIZACION]
 			SET SALIDA = 0,
-			USUARIO = 'Anulado por Servidor'
+			USUARIO = 'Anulado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
@@ -43,7 +43,7 @@ BEGIN TRY
 		-- Actualiza el estado de la Guia de Remisión
 		UPDATE GUIAS_REMISION
 			SET ESTADO = 'ANU',
-			USUARIO = 'Anulado por Servidor',
+			USUARIO = 'Anulado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20)),
 			OBSERVACION = 'Anulado por Servidor: ' + GUIAS_REMISION.OBSERVACION
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
@@ -53,7 +53,7 @@ BEGIN TRY
 		-- Actualiza el estado de la Descripcion de la Guia de Remisión
 		UPDATE [dbo].[GR_DESCRIPCION]
 			SET REG_ID = null,
-			USUARIO = 'Reg. Anulada por Servidor'
+			USUARIO = 'Reg. Anulado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 		FROM inserted as i
 		WHERE NUMERO_GUIA = i.ANUGUI_NROGUI and
 			EMPRESA_ID = i.ANUGUI_CODEMP and
@@ -64,7 +64,7 @@ BEGIN TRY
 			+ ' | ' + ISNULL(d.[NOMBRE_CLIENTE], '') + ' | ' + CAST(ISNULL(d.[FECHA_GUIA], '') AS varchar(20)) + ' | ' + ISNULL(d.[ESTADO], '') 
 			+ ' | ' + CAST(ISNULL(d.[ID_APP], 0) AS varchar(20)) + ' | ' + ISNULL(d.[OC_CLIENTE], '') + ' | ' + ISNULL(d.[NRO_PROCESO], '') 
 			+ ' | ' + ISNULL(d.[UBICACION_SECTOR], '') + ' | Salida:' + CAST(ISNULL(d.SALIDA, '') AS varchar(20)),
-			'DELETED', GETUTCDATE(), 'Reg. Eliminada por Servidor'
+			'DELETED', GETUTCDATE(), 'Reg. Eliminada por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 		FROM [GR_REGULARIZACION] as d
 			INNER JOIN inserted as i 
 			ON NUMERO_GUIA = i.ANUGUI_NROGUI and
@@ -85,7 +85,7 @@ BEGIN TRY
 			+ ' | ' + ISNULL(d.FIRMA_ALMACEN, '') + ' | ' + CAST(ISNULL(d.FECHA_ALMACEN, '') AS varchar(20)) + ' | ' + ISNULL(d.DISTRIBUCION, '') 
 			+ ' | ' + ISNULL(d.FIRMA_DISTRIBUCION, '') + ' | ' + CAST(ISNULL(d.FECHA_DISTRIBUCION, '') AS varchar(20)) + ' | ' + ISNULL(d.USUARIO, '') 
 			+ ' | Contingencia:' + CAST(ISNULL(d.CONTINGENCIA, '') AS varchar(20)) + ' | Salida:' + CAST(ISNULL(d.SALIDA, '') AS varchar(20)),
-			'DELETED', GETUTCDATE(), 'Eliminado por Servidor'
+			'DELETED', GETUTCDATE(), 'Eliminado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 		FROM HOJA_PICKING as d
 			INNER JOIN inserted as i 
 			ON NUMERO_GUIA = i.ANUGUI_NROGUI and

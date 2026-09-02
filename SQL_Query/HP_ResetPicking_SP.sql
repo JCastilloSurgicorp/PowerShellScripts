@@ -4,22 +4,26 @@ BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
+	-- Indicar a SQL Server que si hay un choque con un usuario, este JOB sea la víctima voluntaria.
+	SET DEADLOCK_PRIORITY LOW;
 	BEGIN TRY
-		UPDATE [dbo].[HOJA_PICKING]
-		SET STATUS_PICKING = 'Picking Pendiente',
-			APP_SESSION_ACTIVE = 0,
-			ALMACEN = NULL,
-			FECHA_ALMACEN = NULL,
-			FIRMA_ALMACEN = 'Por Confirmar',
-			USUARIO = 'Cambiado por Servidor'
-		WHERE STATUS_PICKING = 'Picking En Proceso'
-		  AND APP_SESSION_ACTIVE = 1
-		  AND LAST_HEARTBEAT_RECEIVED < DATEADD(MINUTE, -6, GETUTCDATE())
+		BEGIN TRANSACTION;
+			-- Usamos UPDLOCK para advertir a Django y ROWLOCK para que no bloquee páginas completas
+			UPDATE [dbo].[HOJA_PICKING] WITH (ROWLOCK, UPDLOCK, READPAST)
+			SET STATUS_PICKING = 'Picking Pendiente',
+				APP_SESSION_ACTIVE = 0,
+				ALMACEN = NULL,
+				FECHA_ALMACEN = NULL,
+				FIRMA_ALMACEN = 'Por Confirmar',
+				USUARIO = 'Cambiado por Servidor'
+			WHERE STATUS_PICKING = 'Picking En Proceso'
+			  AND APP_SESSION_ACTIVE = 1
+			  AND LAST_HEARTBEAT_RECEIVED < DATEADD(MINUTE, -6, GETUTCDATE())
+		COMMIT TRANSACTION;
 	END TRY
 	BEGIN CATCH
 		-- Rollback si hay transaccion activa
-		DECLARE @XState INT = XACT_STATE();
-		IF @XState = -1 OR @XState = 1 
+		IF @@TRANCOUNT > 0
 			ROLLBACK TRANSACTION;
 		-- Intentar ingresar error en la tabla GR_UPDATE_AUDIT
 		BEGIN TRY

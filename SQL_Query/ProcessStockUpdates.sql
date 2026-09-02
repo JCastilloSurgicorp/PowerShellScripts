@@ -101,27 +101,6 @@ BEGIN
 					CONTINUE;
 				END CATCH
 				BEGIN TRY
-					-- Inserta en SI_Desposito si no está en la lista.
-					INSERT INTO SI_DEPOSITO (CODIGO_DEPOSITO, DESCRIPCION)
-					SELECT DISTINCT TRIM(i.STRMVK_DEPOSI), i.STRMVK_DESDEP
-					FROM #SI_BatchInserted AS i
-						LEFT JOIN SI_DEPOSITO AS d ON d.CODIGO_DEPOSITO = TRIM(i.STRMVK_DEPOSI)
-					WHERE d.id IS NULL AND TRIM(i.STRMVK_DEPOSI) IS NOT NULL AND STRMVK_ORIGEN = 'INSERTED';
-
-					-- Inserta en SI_SECTOR si no está en la lista.
-					INSERT INTO SI_SECTOR (NOMBRE_SECTOR, DESCRIPCION)
-					SELECT DISTINCT TRIM(i.STRMVK_SECTOR), i.STRMVK_DESSEC
-					FROM #SI_BatchInserted AS i
-						LEFT JOIN SI_SECTOR AS s ON s.NOMBRE_SECTOR = TRIM(i.STRMVK_SECTOR)
-					WHERE s.id IS NULL AND TRIM(i.STRMVK_SECTOR) IS NOT NULL AND STRMVK_ORIGEN = 'INSERTED';
-
-					-- Inserta en SI_TIPOALMACEN si no está en la lista.
-					INSERT INTO SI_TIPOALMACEN (NOMBRE_ALMACEN, DESCRIPCION)
-					SELECT DISTINCT IIF(i.STRMVK_TIPALM = '', '-', i.STRMVK_TIPALM), i.STRMVK_DESALM
-					FROM #SI_BatchInserted AS i
-						LEFT JOIN SI_TIPOALMACEN AS tp ON tp.NOMBRE_ALMACEN = IIF(i.STRMVK_TIPALM = '', '-', i.STRMVK_TIPALM)
-					WHERE tp.id IS NULL AND STRMVK_ORIGEN = 'INSERTED';
-
 					-- Actualiza la tabla de stock_inventario si existe el registro
 					IF EXISTS (SELECT 1 FROM #SI_BatchInserted)
 					BEGIN
@@ -130,13 +109,13 @@ BEGIN
 							SELECT 
 								p.id as p_id, i.STRMVK_ARTCOD as cod, p.TIPO as tipo, 
 								IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) as tipo_alm,
-								(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM) as alm,
+								(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + ISNULL(i.STRMVK_TIPALM, '-')) as alm,
 								SUM(CASE WHEN i.STRMVK_ORIGEN = 'DELETED' THEN i.STRMVK_CANTID * -1 ELSE i.STRMVK_CANTID END) as cant
 							FROM #SI_BatchInserted as i
 							LEFT JOIN [SI_PRODUCTO] p ON p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD AND p.TIPO = i.STRMVK_TIPPRO
 							LEFT JOIN [dbo].[SI_Empresa] e ON e.id = i.STRMVK_CODEMP
 							GROUP BY p.id, i.STRMVK_ARTCOD, p.TIPO, IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ), 
-								(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + i.STRMVK_TIPALM)
+								(e.EMPRESA + ' | ' + IIF(i.STRMVK_TIPAMJ = '', i.STRMVK_DEPOSI + ' - ' + i.STRMVK_SECTOR, i.STRMVK_TIPAMJ) + ' | ' + ISNULL(i.STRMVK_TIPALM, '-'))
 						) AS source
 						ON (target.PRODUCTO_ID = source.p_id and target.ALMACENAJE = source.alm)
 						WHEN MATCHED THEN
@@ -154,33 +133,81 @@ BEGIN
 						MERGE STOCK_APROBADO AS target
 						USING (
 							SELECT TOP 60000 p.id as p_id, i.STRMVK_ARTCOD as cod,
-								SUM(CASE WHEN STRMVK_TIPAMJ = 'STOCK DISPONIBLE' 
+								SUM(CASE WHEN (STRMVK_TIPAMJ = 'STOCK DISPONIBLE' 
 									or STRMVK_TIPAMJ = 'CONSUMO INTERNO'
 									or STRMVK_TIPAMJ = 'DEVOLUCION EN PROCESO'
-									or STRMVK_TIPAMJ = 'STOCK EN TRANSITO'
+									or STRMVK_TIPAMJ = 'STOCK EN TRANSITO')
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-C1.G.1'
+									and STRMVK_SECTOR <> 'PRI-R116.A'
+									and STRMVK_SECTOR <> 'PRI-R116.B'
+									and STRMVK_SECTOR <> 'PRI-R116.C'
+									and STRMVK_SECTOR <> 'PRI-R116.D'
+									and STRMVK_SECTOR <> 'PRI-R116.E'
+									and STRMVK_SECTOR <> 'PRI-R88.C'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
 									THEN i.STRMVK_CANTID ELSE 0 END) as disponible,
-								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
-									or STRMVK_TIPAMJ = 'IMPORTACION EN PROSO DE APROBACION'
-									or STRMVK_TIPAMJ = 'INKJET'
-									or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
+								SUM(CASE WHEN STRMVK_SECTOR = 'PRI-C1.G.1'
+									and STRMVK_SECTOR = 'PRI-R116.A'
+									and STRMVK_SECTOR = 'PRI-R116.B'
+									and STRMVK_SECTOR = 'PRI-R116.C'
+									and STRMVK_SECTOR = 'PRI-R116.D'
+									and STRMVK_SECTOR = 'PRI-R116.E'
+									and STRMVK_SECTOR = 'PRI-R88.C'
+									THEN i.STRMVK_CANTID ELSE 0 END) as reservado,
+								SUM(CASE WHEN (STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
+									or STRMVK_TIPAMJ = 'IMPORTACION EN PROCESO DE APROBACION'
+									or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION')
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
 									THEN i.STRMVK_CANTID ELSE 0 END) as importacion,
-								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO' THEN i.STRMVK_CANTID ELSE 0 END) as acondicionado,
-								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO' THEN i.STRMVK_CANTID ELSE 0 END) as reesterilizado,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'INKJET'
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
+									THEN i.STRMVK_CANTID ELSE 0 END) as inkjet,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO'
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
+									THEN i.STRMVK_CANTID ELSE 0 END) as acondicionado,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO' 
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
+									THEN i.STRMVK_CANTID ELSE 0 END) as reesterilizado,
 								SUM(CASE WHEN STRMVK_SECTOR = '7-B.1' 
 									or STRMVK_SECTOR = '7-B.2'
 									or STRMVK_SECTOR = '7-B.3'
 									or STRMVK_SECTOR = 'PRI-R75.A.1'
 									THEN i.STRMVK_CANTID ELSE 0 END) as observados,
-								SUM(CASE WHEN STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO' THEN i.STRMVK_CANTID ELSE 0 END) as venta_sujeta,
-								SUM(CASE WHEN STRMVK_TIPAMJ = 'CONSIGNACION' THEN i.STRMVK_CANTID ELSE 0 END) as consignacion,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO' 
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
+									THEN i.STRMVK_CANTID ELSE 0 END) as venta_sujeta,
+								SUM(CASE WHEN STRMVK_TIPAMJ = 'CONSIGNACION' 
+									and (STRMVK_SECTOR <> '7-B.1'
+									and STRMVK_SECTOR <> '7-B.2'
+									and STRMVK_SECTOR <> '7-B.3'
+									and STRMVK_SECTOR <> 'PRI-R75.A.1')
+									THEN i.STRMVK_CANTID ELSE 0 END) as consignacion,
 								SUM(CASE WHEN STRMVK_TIPAMJ = 'STOCK DISPONIBLE' 
-									or STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
-									or STRMVK_TIPAMJ = 'IMPORTACION EN PROSO DE APROBACION'
-									or STRMVK_TIPAMJ = 'INKJET'
-									or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
 									or STRMVK_TIPAMJ = 'CONSUMO INTERNO'
 									or STRMVK_TIPAMJ = 'DEVOLUCION EN PROCESO'
 									or STRMVK_TIPAMJ = 'STOCK EN TRANSITO'
+									or STRMVK_TIPAMJ = 'PRODUCTOS OBSERVADOS POR CALIDAD'
+									or STRMVK_TIPAMJ = 'IMPORTACION EN PROCESO DE APROBACION'
+									or STRMVK_TIPAMJ = 'COMPRA LOCAL EN PROCESO DE REVISION'
+									or STRMVK_TIPAMJ = 'INKJET'
 									or STRMVK_TIPAMJ = 'PRODUCTOS EN ACONDICIONADO'
 									or STRMVK_TIPAMJ = 'PRODUCTO REESTERILIZADO'
 									or STRMVK_TIPAMJ = 'VTA. SUJET. A CONF(MER)/BIENES DE USO'
@@ -196,7 +223,7 @@ BEGIN
 									FROM [SI_PRODUCTO] as p
 									WHERE p.CODIGO_PRODUCTO = i.STRMVK_ARTCOD
 										and TIPO = i.STRMVK_TIPPRO
-									ORDER BY p.ID -- Aquí decides cuál de las dos cuentas priorizar	IMPORTACION EN PROSO DE APROBACION
+									ORDER BY p.ID -- Aquí decides cuál de las dos cuentas priorizar	IMPORTACION EN PROCESO DE APROBACION
 								) as p
 							GROUP BY STRMVK_ARTCOD, p.id
 							ORDER BY STRMVK_ARTCOD asc
@@ -205,7 +232,9 @@ BEGIN
 						WHEN MATCHED THEN
 							UPDATE SET 
 								target.DISPONIBLE = target.DISPONIBLE + source.disponible,
+								target.RESERVADO = target.RESERVADO + source.reservado,
 								target.IMPORTACION = target.IMPORTACION + source.importacion,
+								target.INKJET = target.INKJET + source.inkjet,
 								target.ACONDICIONADO = target.ACONDICIONADO + source.acondicionado,
 								target.REESTERILIZADO = target.REESTERILIZADO + source.reesterilizado,
 								target.OBSERVADOS = target.OBSERVADOS + source.observados,
@@ -214,8 +243,34 @@ BEGIN
 								target.STOCK = target.STOCK + source.stock,
 								target.USUARIO = 'Modificado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
 						WHEN NOT MATCHED THEN
-							INSERT (PRODUCTO_ID, IMPORTACION, DISPONIBLE, ACONDICIONADO, REESTERILIZADO, OBSERVADOS, VENTA_SUJETA, CONSIGNACION, STOCK, USUARIO)
-							VALUES (source.p_id, source.importacion, source.disponible, source.acondicionado, source.reesterilizado, source.observados, source.venta_sujeta, source.consignacion, source.stock, 'Creado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20)));
+							INSERT (
+								PRODUCTO_ID, 
+								IMPORTACION, 
+								INKJET,
+								DISPONIBLE, 
+								RESERVADO,
+								ACONDICIONADO, 
+								REESTERILIZADO, 
+								OBSERVADOS, 
+								VENTA_SUJETA, 
+								CONSIGNACION, 
+								STOCK, 
+								USUARIO
+							)
+							VALUES (
+								source.p_id, 
+								source.importacion,
+								source.inkjet,
+								source.disponible, 
+								source.reservado,
+								source.acondicionado, 
+								source.reesterilizado, 
+								source.observados, 
+								source.venta_sujeta, 
+								source.consignacion, 
+								source.stock, 
+								'Creado por Servidor - ' + CAST(DATEADD(HOUR, -5, GETUTCDATE()) As VARCHAR(20))
+							);
 					END
 
 
